@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skookum MCP - AI Physics Playground</title>
+    <!-- Outfit Font for premium headings, JetBrains Mono for expressions -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,700;1,400&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div class="glass-bg-glow"></div>
+    <div class="dashboard-wrapper">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="logo-container">
+                <div class="glow-orb"></div>
+                <h1>Skookum <span class="accent-text">MCP</span></h1>
+            </div>
+            <p class="subtitle">Secure physical dimensional solver & algebraic converter</p>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="dashboard-grid">
+            <!-- LEFT PANEL: SOLVER INPUTS & VISUAL BUILDER -->
+            <section class="control-panel glass-card">
+                <div class="card-header">
+                    <h2>Algebraic Solver</h2>
+                    <span class="badge badge-primary">AST Whitelisted</span>
+                </div>
+
+                <!-- SHOWCASE RECIPES -->
+                <div class="preset-recipes-section">
+                    <div class="palette-header">
+                        <h3>Showcase Recipes</h3>
+                        <p class="section-desc">Click any advanced physical recipe to instantly run it through the secure AST engine:</p>
+                    </div>
+                    <div class="preset-chips-grid" id="preset-recipes-container">
+                        <!-- Chips dynamically loaded by JavaScript -->
+                    </div>
+                </div>
+
+                <form id="solver-form" class="interactive-form">
+                    <div class="form-group">
+                        <label for="expression-input">Dynamic Physics Expression</label>
+                        <div class="input-wrapper">
+                            <input 
+                                type="text" 
+                                id="expression-input" 
+                                placeholder="e.g. 10 m/s * 5 s or 30 degC - 10 delta_degC" 
+                                required 
+                                autocomplete="off"
+                                autofocus
+                            >
+                            <button type="button" id="clear-input-btn" title="Clear Expression">&times;</button>
+                        </div>
+                        <small class="input-helper">Supports implicit multiplication (5m), division synonyms (per), and ratios (%)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="target-unit-input">Target Unit</label>
+                        <input 
+                            type="text" 
+                            id="target-unit-input" 
+                            placeholder="e.g. foot, delta_degF, km/h" 
+                            required 
+                            autocomplete="off"
+                        >
+                        <small class="input-helper">The unit to convert the final physical computation result into</small>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="btn-compute">
+                        <span>Compute Result</span>
+                        <div class="loading-spinner hidden"></div>
+                    </button>
+                </form>
+
+                <!-- DYNAMIC UNIT BUILDER PALETTE -->
+                <div class="unit-builder-section">
+                    <div class="palette-header">
+                        <h3>Unit Builder Palette</h3>
+                        <p class="section-desc">Click any physical dimension category to expand, then click a unit to inject it directly into the active input field.</p>
+                    </div>
+                    <div class="accordion-container" id="units-accordion">
+                        <div class="palette-loading">
+                            <div class="loading-bar"></div>
+                            <span>Fetching supported units registry...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN WRAPPER -->
+            <div class="right-column">
+                <!-- RIGHT PANEL: DYNAMIC RESULTS & STEP-BY-STEP DERIVATIONS -->
+                <section class="result-panel">
+                    <!-- INITIAL EMPTY STATE -->
+                    <div id="results-empty-state" class="empty-state glass-card">
+                        <div class="empty-icon">&#8747;</div>
+                        <h3>Awaiting Dimensional Computation</h3>
+                        <p>Input a mathematical physics formula on the left or select a history item to examine its exact rational derivation and dimensional breakdown.</p>
+                    </div>
+
+                    <!-- SUCCESS VIEW -->
+                    <div id="results-success-card" class="success-card glass-card hidden">
+                        <div class="card-header">
+                            <h2>Computation Result</h2>
+                            <span class="badge badge-success">Dimensionally Sound</span>
+                        </div>
+
+                        <div class="big-answer-box">
+                            <div class="approx-value" id="answer-approx">0.00</div>
+                            <div class="unit-label" id="answer-unit">units</div>
+                        </div>
+
+                        <!-- METRIC GRID -->
+                        <div class="metrics-grid">
+                            <div class="metric-item">
+                                <span class="metric-title">SymPy Exact Fraction</span>
+                                <span class="metric-value font-code" id="metric-exact">0</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-title">Internal Value (SI Units)</span>
+                                <span class="metric-value font-code" id="metric-internal">0</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-title">Physical Dimensionality</span>
+                                <span class="metric-value font-code" id="metric-dim">unknown</span>
+                            </div>
+                        </div>
+
+                        <!-- STEP-BY-STEP SOLVER TIMELINE -->
+                        <div class="timeline-section">
+                            <h3>Mathematical Derivation Steps</h3>
+                            <div class="derivation-timeline">
+                                <div class="timeline-step">
+                                    <div class="step-bullet">1</div>
+                                    <div class="step-content">
+                                        <h4>AST Token Normalization</h4>
+                                        <p id="step-token">Messy spacing pre-processed and parsed successfully.</p>
+                                    </div>
+                                </div>
+                                <div class="timeline-step">
+                                    <div class="step-bullet">2</div>
+                                    <div class="step-content">
+                                        <h4>AST Security Whitelist Verification</h4>
+                                        <p>Safe AST node checks completed: Dynamic RCE payloads blocked. All calls and class initializations sandboxed.</p>
+                                    </div>
+                                </div>
+                                <div class="timeline-step">
+                                    <div class="step-bullet">3</div>
+                                    <div class="step-content">
+                                        <h4>Rational Calculation & temperature coordinating</h4>
+                                        <p id="step-coord">Coordination verified. Physical coordinate bounds checked successfully.</p>
+                                    </div>
+                                </div>
+                                <div class="timeline-step">
+                                    <div class="step-bullet">4</div>
+                                    <div class="step-content">
+                                        <h4>Exact Scale Offset Conversion</h4>
+                                        <p id="step-scale">Physical dimensional scale factors resolved dynamically.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ERROR VIEW -->
+                    <div id="results-error-card" class="error-card glass-card hidden">
+                        <div class="card-header">
+                            <h2>Calculation Error</h2>
+                            <span class="badge badge-danger">Calculation Blocked</span>
+                        </div>
+                        <div class="error-content-box">
+                            <div class="error-icon">&#9888;</div>
+                            <div class="error-details">
+                                <h3 id="error-category">Category</h3>
+                                <p id="error-message">Error details...</p>
+                            </div>
+                        </div>
+                        <div class="error-educational-advice">
+                            <h4>Educational Guidance</h4>
+                            <ul id="error-tips">
+                                <li>Check that you are not adding different base units (e.g. length + mass).</li>
+                                <li>Ensure absolute temperatures coordinates are only subtracted (offset difference), not added or scaled.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- NEW PANEL: AGENT PROMPT SANDBOX -->
+                <section class="prompt-sandbox glass-card">
+                    <div class="card-header">
+                        <h2>Agent Prompt Sandbox</h2>
+                        <span class="badge badge-primary">Prompt Template</span>
+                    </div>
+                    
+                    <p class="section-desc">Verify how Skookum's <code>verify_dimensional_consistency</code> workflow prompt template behaves when populated with diverse engineering reports.</p>
+                    
+                    <!-- Segmented tab control -->
+                    <div class="sandbox-tabs">
+                        <button type="button" class="tab-btn active" data-scenario="kinematics">Kinematics Telemetry</button>
+                        <button type="button" class="tab-btn" data-scenario="energy">Energy Logs</button>
+                        <button type="button" class="tab-btn" data-scenario="reactor">Reactor Safety</button>
+                    </div>
+
+                    <div class="form-group margin-top-md">
+                        <label for="sandbox-textarea">Technical Text / Telemetry Log</label>
+                        <textarea 
+                            id="sandbox-textarea" 
+                            rows="4" 
+                            placeholder="Type or edit technical text here..."
+                            autocomplete="off"
+                        ></textarea>
+                    </div>
+
+                    <!-- Sandbox Interactive Control Bar -->
+                    <div class="sandbox-actions-bar">
+                        <button type="button" id="run-pipeline-btn" class="btn-compute btn-agent-pipeline">
+                            <span>Run AI Agent Pipeline</span>
+                            <div class="pipeline-spinner hidden"></div>
+                        </button>
+                        <button type="button" id="toggle-prompt-btn" class="btn-toggle-prompt">
+                            Inspect Raw Agent Prompt
+                        </button>
+                    </div>
+
+                    <!-- Collapsible Prompt Container (Hidden by default) -->
+                    <div class="prompt-output-section hidden" id="prompt-container">
+                        <div class="output-header">
+                            <h4>Generated MCP Agent Prompt Context</h4>
+                            <button type="button" id="copy-prompt-btn" class="btn-copy">
+                                <span>Copy Prompt</span>
+                            </button>
+                        </div>
+                        <pre class="prompt-codeblock"><code id="prompt-preview" class="font-code">Loading prompt template...</code></pre>
+                    </div>
+
+                    <!-- Themed Cybernetic Agent Execution Console & formal report (Hidden by default) -->
+                    <div class="agent-console-section hidden" id="agent-console-card">
+                        <div class="console-header">
+                            <h4>Headless Agent Execution Trace</h4>
+                            <span class="badge" id="agent-status-badge">Idle</span>
+                        </div>
+                        
+                        <!-- Typewriter logs container -->
+                        <div class="console-logs-box" id="console-logs-container"></div>
+
+                        <!-- Formal validation report card -->
+                        <div class="formal-report-box" id="formal-report-container"></div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- PERSISTENT HISTORY FOOTER -->
+        <footer class="persistent-history glass-card">
+            <div class="history-header">
+                <h3>Computation History Log</h3>
+                <button type="button" id="clear-history-btn" class="btn-text-only">Clear All</button>
+            </div>
+            <div class="history-list-wrapper" id="history-container">
+                <div class="history-empty">No calculations recorded yet. Run a dimensionally sound expression to populate.</div>
+            </div>
+        </footer>
+    </div>
+    <script src="/index.js"></script>
+</body>
+</html>
