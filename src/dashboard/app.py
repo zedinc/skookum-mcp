@@ -135,8 +135,8 @@ def run_verification_pipeline(scenario: str, text: str) -> dict:
         {"step": 1, "action": "NLP Scan", "log": "Scanning telemetry document... Detected physical claims."},
         {"step": 2, "action": "Claim Extraction", "log": f"Extracted: Formula = '{expr}', Target Unit = '{target}', Claimed = '{claimed}'."},
         {"step": 3, "action": "MCP Tool Invocation", "log": f"Calling tool 'dimensional_compute(expression=\"{expr}\", target_unit=\"{target}\")'..."},
-        {"step": 4, "action": "Solver Execution", "log": f"Calculated exact identity: {clean_res}."},
-        {"step": 5, "action": "Traceability Audit", "log": f"Verifying claimed '{claimed}' against exact rational solver result..."}
+        {"step": 4, "action": "Solver Execution", "log": f"Calculated result: {clean_res}."},
+        {"step": 5, "action": "Traceability Audit", "log": f"Verifying claimed '{claimed}' against solver result..."}
     ]
 
     if is_match:
@@ -148,14 +148,14 @@ def run_verification_pipeline(scenario: str, text: str) -> dict:
             "target": target,
             "claimed": claimed,
             "result": clean_res,
-            "traceback": f"Claim matches exact rational internal value of {clean_res}. Exact conversion verified without float drift.",
+            "traceback": f"Claim matches computed value of {clean_res}.",
             "report": (
                 "### Formal Physics Validation Report\n\n"
                 "**Status**: 🟢 **Claim Fully Verified**\n\n"
                 f"- **Logged Claim**: `{expr}` yields a total of `{claimed}`.\n"
                 f"- **Computed Truth**: `{clean_res}`\n"
                 "- **Algebraic Identity**: The log is **100% mathematically correct**. "
-                "The exact internal rational identity matches the logged claim. "
+                "The computed value matches the logged claim. "
                 "Dynamic unit conversion checks completed with zero floating-point accumulation errors."
             )
         }

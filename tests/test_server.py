@@ -12,7 +12,7 @@ def test_mcp_dimensional_compute_endpoint_success():
     from src.server import dimensional_compute
     res = dimensional_compute("10 m/s * 5 s", "foot")
     # Assert
-    assert "approx. 164.042" in res
+    assert res == "Result: 164.042 foot"
 
 
 @pytest.mark.conversion
@@ -604,3 +604,7 @@ def test_exponent_resource_exhaustion_is_rejected_quickly(expr):
     res = dimensional_compute(expr, "dimensionless")
     assert res.startswith("Parsing Error:")
 
+
+def test_exponent_within_limits_still_evaluates():
+    from src.server import dimensional_compute
+    assert dimensional_compute("2 ** 100", "dimensionless") == "Result: 1.26765e+30 dimensionless"

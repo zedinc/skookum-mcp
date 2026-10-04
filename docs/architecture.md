@@ -84,7 +84,7 @@ To eliminate Remote Code Execution (RCE) and attributes leakage, the `_SafeASTVi
 
 ## 4. Quantity SI-Base Scaling Math
 
-Every physical measurement is represented in `src/types.py` by an immutable `Quantity` value object. Upon instantiation, the object parses its magnitude using SymPy `Rational` exact math and immediately translates it into standard SI-Base units (meters, kilograms, seconds, etc.) internally. 
+Every physical measurement is represented in `src/types.py` by an immutable `Quantity` value object. Upon instantiation, the object parses its magnitude using SymPy `Rational` arithmetic and immediately translates it into standard SI-Base units (meters, kilograms, seconds, etc.) internally. 
 
 This internal base value is computed by querying the Converter's `resolve_unit` registry:
 
@@ -99,7 +99,9 @@ $$\text{value}_{expressed} = \frac{\text{value}_{internal} - \text{offset}}{\tex
 
 ---
 
-## 4a. Resource Limits
+## 4a. Precision & Resource Limits
+
+Arithmetic on parsed values uses SymPy rationals, but unit factors are resolved through Pint floats (`Rational(str(float)).limit_denominator(10**12)`), so results are accurate to roughly 12 significant figures rather than exact. Tool output is a decimal to 6 significant figures.
 
 To prevent resource exhaustion (which the AST whitelist alone cannot stop), `parse_and_evaluate` rejects expressions over 500 characters or 20 nesting levels, and `_check_pow_bounds` rejects exponents with magnitude above 1000 or exact results above 1,000,000 bits (e.g. `9**9**9`).
 
@@ -123,7 +125,7 @@ $$\mathbf{v}_{start} + \mathbf{v}_{target} = \mathbf{0}$$
 
 The converter identifies this as a reciprocal physical relationship (e.g. `Miles Per Gallon` ($L^{-1}$) vs `Liters per Kilometer` ($L^1$)). The solver automatically performs an algebraic reciprocal inversion:
 
-1.  Calculates the exact rational reciprocal of the starting Quantity's value:
+1.  Calculates the rational reciprocal of the starting Quantity's value:
     $$\text{value}_{inv} = \frac{1}{\text{value}_{internal}}$$
 2.  Resolves an intermediate, inverted unit mapping.
-3.  Performs standard linear scale matching to output the correct target unit quantity, preserving mathematical identity and avoiding decimal rounding drift.
+3.  Performs standard linear scale matching to output the correct target unit quantity, without an intermediate float step.

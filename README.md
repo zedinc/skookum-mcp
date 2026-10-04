@@ -13,7 +13,7 @@ When building AI agent tools or web-based scientific calculators, standard libra
 | Physical Challenge | Traditional Engines / LLM Reasoning | Skookum MCP |
 | :--- | :--- | :--- |
 | **Algebraic Expressions** | Require complex manual parsing or unsafe `eval()` executions. LLMs frequently hallucinate intermediate units during multi-step derivations. | **Safe AST-Based Sandbox**: Safely parses and evaluates natural physical expressions (e.g., `10m/s * 5s` or `(30degC - 10degC) + 5delta_degC`) with whitelisted nodes and zero `eval()`. |
-| **Mathematical Precision** | Floating-point conversion factors introduce rounding errors and accumulation drift, especially in division or reciprocal conversions. | **Exact SymPy Rational Engine**: Computes all calculations internally using exact rational fractions, preserving perfect mathematical identity. |
+| **Mathematical Precision** | Chained float arithmetic accumulates rounding drift, and LLMs routinely misremember conversion factors. | **Rational Arithmetic, Decimal Output**: Intermediate math uses SymPy rationals to avoid accumulating float drift. Conversion factors come from Pint (floats), so results are accurate to roughly 12 significant figures, reported to 6. Results are *not* exact. |
 | **Dimensional Violations** | Standard math engines allow physically impossible additions (e.g., `10 kg + 5 m`) or invalid temperature scaling without warning. | **Algebraic Exponent Vectors**: Strict compile-time generics and run-time cardinalities block dimensional mismatches and enforce strict physical bounds. |
 | **Agent Integration** | AI agents must construct custom tools, struggle to format inputs, and have no standard protocol to check formula consistency in technical texts. | **First-Class MCP Support**: Exposes standardized tools, dynamic unit resources, and engineering validation prompts out-of-the-box. |
 
@@ -35,7 +35,7 @@ When building AI agent tools or web-based scientific calculators, standard libra
 
 4. **Premium Interactive Playground (`src/dashboard/`)**:
    * **Why**: To provide an outstanding visual sandbox for testing computations and inspecting fractional steps.
-   * **How**: A neon glassmorphic dark-mode web interface served by standard library `http.server`. Includes a live unit injector palette, fractional/decimal step viewer, and local-storage computation history.
+   * **How**: A neon glassmorphic dark-mode web interface served by standard library `http.server`. Includes a live unit injector palette, step viewer, and local-storage computation history.
 
 ---
 
@@ -46,17 +46,17 @@ Skookum MCP evaluates physical equations algebraically across common physical un
 ### 1. Mechanics & Kinematics
 *   **Expression**: `10 m/s * 5 s`
 *   **Target Unit**: `ft`
-*   **Result**: `164.04199 ft` (Exact rational: `16404199/100000`)
+*   **Result**: `164.042 foot`
 
 ### 2. Energy & Power
 *   **Expression**: `500 W * 2 hr`
 *   **Target Unit**: `MJ`
-*   **Result**: `3.6 MJ` (Exact rational: `18/5`)
+*   **Result**: `3.6 megajoule`
 
 ### 3. Reciprocal Fuel Consumption
 *   **Expression**: `30 mpg`
 *   **Target Unit**: `l/100km`
-*   **Result**: `7.840487 l/100km` (Exact rational: `2352145833/300000000`)
+*   **Result**: `7.84049 liter / (100 * kilometer)`
 
 ### 4. Infeasible/Error Example (Safety Guards)
 When asked to perform physically impossible calculations, the engine elegantly blocks execution and returns clear, educational errors:
@@ -92,7 +92,7 @@ Let the agent safely evaluate physics formulas and target conversions.
       "content": [
         {
           "type": "text",
-          "text": "Result: 49/10 kJ (approx. 4.9 kJ)"
+          "text": "Result: 4.9 kilojoule"
         }
       ]
     }
@@ -199,9 +199,9 @@ uv run skookum-dashboard
 
 ## Running the Test Suite
 
-We maintain a strict **100% statement and branch coverage** across all modules with **147 tests**:
+We aim for full statement and branch coverage (see `uv run pytest` for the current count and coverage report):
 
 ```bash
 # Run the complete test suite with coverage report
-.venv/bin/pytest
+uv run pytest
 ```

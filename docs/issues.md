@@ -81,3 +81,17 @@ In this repository, the label **`[ready-for-agent]`** indicates a triage status.
     2.  Delegate the calculations to the decoupled AST parser and converter engine (catching all Security, Parsing, and Type errors to output clean plaintext to stderr).
     3.  Register `skookum-cli` under `[project.scripts]` in `pyproject.toml` pointing to `src.cli:main`.
     4.  Add CLI-based programmatic integration tests to ensure 100% statement and branch coverage.
+
+---
+
+## 3. Parked (from the 2026-10 project review)
+
+### Issue: Strictness gaps — silent choices instead of errors
+*   **Backlog Type**: Technical / Code Backlog
+*   **Status**: `[STATUS: PARKED]`
+*   **Context**: Observed by running the engine: `1 N*m -> J` and `1 Hz -> Bq` succeed (no quantity kinds); `ton` silently resolves to the US short ton, and `gallon`/`cup` to US customary; `1 degC -> delta_degC` returns `274.15` instead of erroring; any reciprocal-dimension target is auto-inverted. Decide whether each should error, require disambiguation, or be explicit opt-in.
+
+### Issue: With/without-tool evaluation
+*   **Backlog Type**: Product Backlog
+*   **Status**: `[STATUS: PARKED]`
+*   **Context**: Nothing measures whether agents make fewer physics errors with Skookum. Build ~50 engineering word problems, run an agent with and without the server, score answer error and tool-call rate. Use the results to prioritise constants, angles, gauge pressure and quantity kinds.

@@ -21,7 +21,7 @@ When AI agents perform engineering, scientific, or mathematical tasks, they freq
 
 ### Core Architecture Pillars:
 1.  **RCE-Safe AST Sandbox**: A strict AST (Abstract Syntax Tree) validator that completely replaces dangerous `eval()` blocks, sandboxing execution to whitelisted mathematical nodes.
-2.  **Exact SymPy Rational Engine**: All calculations are computed internally as rational fractions to guarantee perfect mathematical identity and prevent floating-point accumulation drift.
+2.  **Rational Arithmetic, Decimal Output**: Intermediate calculations use SymPy rationals to avoid accumulating floating-point drift. Conversion factors originate from Pint floats, so results are not exact; they are reported as decimals to 6 significant figures.
 3.  **Physical Safety Guards**: Automatically prevents physically impossible operations (such as adding incompatible units like meters and kilograms) by verifying dynamic algebraic exponent vectors across calculations.
 4.  **Interactive Agent Self-Healing**: A specialized error boundary that catches math, syntax, or physical errors and returns rich educational guidance directly inside standard tool text outputs, enabling agents to self-heal and correct their formulas on the fly.
 5.  **Developer Companion Playground**: A responsive, visual dashboard interface to manually test formulas, inspect fractional steps, and review derivation logs during integration.
@@ -70,7 +70,7 @@ We map out the core product requirements through exhaustive, testable user stori
 *   **User Story**: As a **Human Scientist**, I want to convert directly between inversely related units (e.g., converting fuel efficiency `30 mpg` to fuel consumption `l/100km`), so that reciprocal physics conversions are solved automatically.
 *   **Acceptance Criteria**:
     *   The engine dynamically detects when the target unit's dimensionality vector is the exact reciprocal sum of the starting unit's cardinality.
-    *   Converting `30 mpg` to `l/100km` outputs the exact mathematically correct rational value (approx. `7.84 l/100km`).
+    *   Converting `30 mpg` to `l/100km` outputs approximately `7.84 l/100km`.
     *   Attempting to calculate a reciprocal on a zero-value quantity (e.g., `1 / (0 m)`) raises a clear, programmatically caught `MathematicalError` indicating that zero has no defined reciprocal.
 
 ---
@@ -82,7 +82,7 @@ We map out the core product requirements through exhaustive, testable user stori
 *   **Acceptance Criteria**:
     *   Adding a relative temperature difference (`delta_degC`, `delta_degF`, `delta_kelvin`, `delta_rankine`) to an absolute temperature coordinate (`degC`, `degF`, `kelvin`, `rankine`) correctly returns a shifted absolute temperature.
     *   Subtracting a relative delta temperature from an absolute coordinate correctly shifts the coordinate downwards.
-    *   Operations preserve rational fraction precision internally without introducing float drift.
+    *   Operations use rational arithmetic internally so chained steps do not accumulate float drift.
 
 #### 6. Coordinate Scale Subtraction
 *   **User Story**: As a **Human Scientist**, I want to subtract one absolute coordinate from another (e.g. `100 degC - 20 degC`), so that the physical result represents a relative difference (`80 delta_degC`).
@@ -173,7 +173,7 @@ We map out the core product requirements through exhaustive, testable user stori
 #### 17. Interactive SI Base Reference Inspector
 *   **User Story**: As a **QA Tester**, I want to visually inspect the inferred dynamic dimensionality and SI base conversion scales of my calculations on the dashboard, so that I can cross-examine the core engine's internal mathematical scaling calculations against physical constants.
 *   **Acceptance Criteria**:
-    *   Exposing computed results displays the exact SymPy fraction, the decimal approximation, the inferred algebraic dimensionality vector (e.g. `[mass] * [length] * [time] ** -2`), and the base SI scale factor (e.g., scale factor in meters or seconds).
+    *   Exposing computed results displays the decimal result, the inferred algebraic dimensionality vector (e.g. `[mass] * [length] * [time] ** -2`), and the base SI scale factor (e.g., scale factor in meters or seconds).
     *   The interactive units accordion palette displays clean abbreviations and categories, allowing unit injection on click.
 
 #### 18. Local Session Replay History
@@ -196,7 +196,7 @@ To maintain high cohesion and prevent dependency pollution, the co-processor enf
 ## Validation & Quality Metrics
 
 We establish the following quality standards for the Skookum MCP project:
-*   **Black-Box Behavioral Assertions**: All tests must verify external interfaces, mathematical rational identities, and security boundaries rather than checking low-level internal state transitions.
+*   **Black-Box Behavioral Assertions**: All tests must verify external interfaces, mathematical identities (within tolerance), and security boundaries rather than checking low-level internal state transitions.
 *   **Statement and Branch Coverage**: We strive to maintain a strict 100% statement and branch coverage across all modules (types, engine, parser, server, and dashboard app).
 *   **RCE Mitigation Verifications**: Maintain explicit property and injection tests designed to attempt sandboxing bypasses, verifying that no unauthorized code or attributes are exposed.
 

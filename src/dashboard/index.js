@@ -370,7 +370,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Dynamically inject step details for the timeline
         const showPreprocessed = preprocessed || expr;
         stepToken.innerHTML = `Messy natural input successfully preprocessed inside the AST sandbox to: <code class="font-code" style="color: var(--accent); font-size: 0.85rem;">${showPreprocessed}</code>.`;
-        stepCoord.innerHTML = `Calculation resolved using SymPy exact Rational arithmetic. Absolute temperature constraints coordinate check passed. Exact value computed as: <code class="font-code" style="color: var(--primary)">${exactVal}</code>.`;
+        stepCoord.innerHTML = `Calculation resolved using SymPy rational arithmetic (displayed to 6 significant figures). Absolute temperature constraints coordinate check passed. Exact value computed as: <code class="font-code" style="color: var(--primary)">${exactVal}</code>.`;
         stepScale.textContent = `Applied target unit scale mapping and verified physical dimension consistency. Successfully converted to '${targetU}'.`;
 
         // Save to browser history

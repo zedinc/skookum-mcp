@@ -18,7 +18,7 @@ def dimensional_compute(expression: str, target_unit: str) -> str:
         target_unit: The target unit abbreviation to convert the final result into (e.g. 'ft', 'delta_degC', 'km/h').
         
     Returns:
-        A formatted string with the exact rational result and a floating-point decimal approximation.
+        A formatted string with the result as a decimal (6 significant figures) and its unit.
         If the calculation is invalid or insecure, returns a detailed educational error message.
     """
     try:
@@ -35,12 +35,8 @@ def dimensional_compute(expression: str, target_unit: str) -> str:
         target_u = resolve_unit(target_unit)
         result = convert_quantity(qty, target_u)
         
-        # 4. Format output with exact SymPy fraction and float approximation
-        float_approx = float(result.expressed_value)
-        return (
-            f"Result: {result.expressed_value} {result.unit_name} "
-            f"(approx. {float_approx:.6g} {result.unit_name})"
-        )
+        # 4. Format output as a decimal to 6 significant figures
+        return f"Result: {float(result.expressed_value):.6g} {result.unit_name}"
         
     except SecurityError as e:
         return f"Security Error: {e}"
