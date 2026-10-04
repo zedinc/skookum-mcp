@@ -22,8 +22,7 @@ class _SafeASTVisitor(ast.NodeVisitor):
         ast.Expression,
         ast.BinOp,
         ast.UnaryOp,
-        ast.Constant,  # Python 3.8+
-        ast.Num,       # Deprecated but kept for older Python versions
+        ast.Constant,
         ast.Name,
         ast.Load,
         # Allow operator nodes during general visiting
@@ -129,14 +128,26 @@ def preprocess_expression(expr: str) -> str:
     
     return expr
 
+# Resource-exhaustion guards for exponentiation (the AST whitelist cannot stop `9**9**9`)
+MAX_EXPONENT = 1000
+MAX_RESULT_BITS = 1_000_000
+
+def _check_pow_bounds(base: Any, exponent: Any) -> None:
+    """Rejects exponentiations whose exponent or exact-rational result size would exhaust resources."""
+    exp_mag = abs(float(exponent))
+    if exp_mag > MAX_EXPONENT:
+        raise ExpressionParsingError(f"Exponent magnitude exceeds limit of {MAX_EXPONENT}.")
+    if isinstance(base, Rational) and base.is_Rational:
+        if (base.p.bit_length() + base.q.bit_length()) * exp_mag > MAX_RESULT_BITS:
+            raise ExpressionParsingError("Result of exponentiation exceeds the maximum allowed size.")
+
 def _evaluate_ast_node(node: ast.AST) -> Union[Rational, Quantity[Any]]:
     """Recursively evaluates an AST node using SymPy and custom Quantity classes securely."""
     if isinstance(node, ast.Expression):
         return _evaluate_ast_node(node.body)
 
-    elif isinstance(node, (ast.Constant, ast.Num)):
-        val = node.value if isinstance(node, ast.Constant) else node.n
-        return Rational(str(val))
+    elif isinstance(node, ast.Constant):
+        return Rational(str(node.value))
 
     elif isinstance(node, ast.Name):
         name_id = node.id
@@ -183,6 +194,7 @@ def _evaluate_ast_node(node: ast.AST) -> Union[Rational, Quantity[Any]]:
             else:
                 exponent = right
             
+            _check_pow_bounds(left.expressed_value if isinstance(left, Quantity) else left, exponent)
             if isinstance(left, Quantity):
                 new_card = {k: v * int(exponent) for k, v in left.unit.cardinality.items()}
                 new_scale = left.unit.scale_factor ** exponent

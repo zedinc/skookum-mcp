@@ -1,3 +1,10 @@
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "hypothesis",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -9,7 +16,7 @@ description = "A secure, mathematically precise, and self-contained MCP server f
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp>=0.1.0",
+    "mcp>=1.0,<2",
     "pint>=0.22",
     "sympy>=1.12",
 ]

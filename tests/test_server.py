@@ -594,3 +594,13 @@ def test_engine_case_insensitive_synonyms_resolution():
     converted = res_l100.to("l/100km")
     assert float(converted.expressed_value) == 7.84
 
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("expr", ["10 ** 10 ** 10", "9 ** 9 ** 9", "2 ** 100000000", "(10 ** 500) ** 900", "10 m ** 5000"])
+def test_exponent_resource_exhaustion_is_rejected_quickly(expr):
+    """Verify that oversized exponentiations return a parsing error instead of hanging or crashing."""
+    from src.server import dimensional_compute
+    res = dimensional_compute(expr, "dimensionless")
+    assert res.startswith("Parsing Error:")
+

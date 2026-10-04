@@ -99,6 +99,12 @@ $$\text{value}_{expressed} = \frac{\text{value}_{internal} - \text{offset}}{\tex
 
 ---
 
+## 4a. Resource Limits
+
+To prevent resource exhaustion (which the AST whitelist alone cannot stop), `parse_and_evaluate` rejects expressions over 500 characters or 20 nesting levels, and `_check_pow_bounds` rejects exponents with magnitude above 1000 or exact results above 1,000,000 bits (e.g. `9**9**9`).
+
+---
+
 ## 5. Converter Resolution & Reciprocal Logic
 
 The **Converter** seam (`src/engine.py`) performs two primary physical validations during a conversion call:
