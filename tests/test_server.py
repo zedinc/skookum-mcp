@@ -220,16 +220,16 @@ def test_absolute_temperature_multiplication_division_guards():
     from src.types import Quantity
     t_abs = Quantity(30, "degC")
     
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = t_abs * 2
         
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = 2 * t_abs
         
-    with pytest.raises(TypeError, match="Cannot divide absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot divide 'degree_(Celsius|Fahrenheit)'"):
         _ = t_abs / 2
         
-    with pytest.raises(TypeError, match="Cannot divide absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot divide 'degree_(Celsius|Fahrenheit)'"):
         _ = 2 / t_abs
 
 
@@ -615,3 +615,10 @@ def test_inch_abbreviation_works_end_to_end():
     assert dimensional_compute("2 in", "mm") == "Result: 50.8 millimeter"
     assert dimensional_compute("1 ft", "in") == "Result: 12 inch"
     assert dimensional_compute("2 min", "s") == "Result: 120 second"
+
+
+def test_kelvin_is_scalable_but_celsius_is_not_end_to_end():
+    from src.server import dimensional_compute
+    assert dimensional_compute("10 K * 2 m", "K*m") == "Result: 20 kelvin * meter"
+    res = dimensional_compute("3 m * 2 degC", "m*K")
+    assert res.startswith("Type Error: Nonsense: Cannot multiply 'degree_Celsius'")

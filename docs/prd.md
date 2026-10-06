@@ -94,7 +94,7 @@ We map out the core product requirements through exhaustive, testable user stori
 *   **User Story**: As an **Agent Platform Engineer**, I want the units engine to block physically invalid temperature operations (e.g. adding two absolute coordinates like `20 degC + 20 degC`, or negating/scaling absolute coordinates), so that nonsense physical calculations are caught immediately.
 *   **Acceptance Criteria**:
     *   Adding two absolute temperature quantities raises a clear `TypeError` explaining that coordinate addition is invalid.
-    *   Negating or multiplying absolute coordinates raises a `TypeError` (unless scaling by a dimensionless value of exactly `1`).
+    *   Negating, multiplying or dividing an offset-scale temperature (`degC`, `degF`, whose zero is not "no temperature") raises a `TypeError` naming the offending unit and suggesting kelvin or a delta unit. Zero-based units (`kelvin`, `rankine`) scale normally, e.g. `10 K * 2 m`.
 
 ---
 

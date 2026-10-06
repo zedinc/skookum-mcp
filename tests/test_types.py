@@ -81,7 +81,7 @@ def test_multiplying_absolute_temperatures_raises_type_error_for_nonsense_scalin
     t1 = make_quantity(30, "degC")
 
     # Act & Assert
-    with pytest.raises(TypeError, match="Nonsense: Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = t1 * 2
 
 
@@ -109,13 +109,13 @@ def test_absolute_temperature_multiplication_and_division_guards(make_quantity):
     """Verify absolute temperature multiplication and division guards."""
     abs_temp = make_quantity(30, "degC")
     
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = 2 * abs_temp
         
-    with pytest.raises(TypeError, match="Cannot divide absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot divide 'degree_(Celsius|Fahrenheit)'"):
         _ = abs_temp / 2
         
-    with pytest.raises(TypeError, match="Cannot divide absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot divide 'degree_(Celsius|Fahrenheit)'"):
         _ = 2 / abs_temp
 
 
@@ -294,7 +294,7 @@ def test_number_divided_by_quantity(make_quantity):
 def test_number_divided_by_absolute_temperature_raises_type_error(make_quantity):
     """Verify dividing a number by an absolute temperature raises a TypeError (lines 318-320)."""
     abs_temp = make_quantity(30, "degC")
-    with pytest.raises(TypeError, match="Cannot divide absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot divide 'degree_(Celsius|Fahrenheit)'"):
         _ = 10 / abs_temp
 
 
@@ -400,33 +400,33 @@ def test_absolute_temperature_multiplication_construction_and_guards(make_quanti
     
     # 1. __neg__ checks
     abs_temp = make_quantity(1, "degC")
-    with pytest.raises(TypeError, match="Cannot negate absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot negate 'degree_(Celsius|Fahrenheit)'"):
         _ = -abs_temp
         
     normal_qty = make_quantity(5, "meter")
     assert (-normal_qty).value == Rational(-5)
     
     # 2. __mul__ absolute temp * scalar MUST fail cleanly now (zero workarounds/surprises!)
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = abs_temp * 5
         
     abs_temp_large = make_quantity(10, "degC")
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = abs_temp_large * 5
         
     # 3. __mul__ dimensionless quantity * absolute temp MUST fail cleanly
     dimless_qty = make_quantity(5, "dimensionless")
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = dimless_qty * abs_temp
         
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = dimless_qty * abs_temp_large
         
     # 4. __rmul__ with Rational scalar on absolute temp MUST fail cleanly
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = Rational(5, 9) * make_quantity(1, "degF")
         
-    with pytest.raises(TypeError, match="Cannot multiply absolute temperatures"):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_(Celsius|Fahrenheit)'"):
         _ = 5 * abs_temp_large
 
     # 5. Native Unit Algebra & Construction (Allowed and clean!)
@@ -488,3 +488,42 @@ def test_absolute_temperature_multiplication_construction_and_guards(make_quanti
 
 
 
+
+
+# --- Offset-scale vs. zero-based temperature units ---
+
+@pytest.mark.temperature
+@pytest.mark.parametrize("unit", ["kelvin", "rankine"])
+def test_zero_based_temperature_units_have_no_offset(unit):
+    from src.engine import resolve_unit
+    assert resolve_unit(unit).offset == 0
+
+
+@pytest.mark.temperature
+def test_kelvin_can_be_scaled_and_multiplied(make_quantity):
+    product = make_quantity(10, "K") * make_quantity(2, "m")
+    assert product.expressed_value == 20
+    assert product.dimensionality == "[length] * [temperature]"
+    assert (make_quantity(10, "K") * 3).expressed_value == 30
+    assert (2 * make_quantity(10, "K")).expressed_value == 20
+    assert (make_quantity(10, "K") / make_quantity(2, "m")).expressed_value == 5
+
+
+@pytest.mark.temperature
+def test_rankine_scales_and_negates(make_quantity):
+    assert (make_quantity(10, "rankine") * 2).expressed_value == 20
+    assert (-make_quantity(5, "K")).expressed_value == -5
+
+
+@pytest.mark.temperature
+def test_offset_scale_errors_name_the_actual_offender(make_quantity):
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_Celsius': it is an offset-scale temperature"):
+        make_quantity(3, "m") * make_quantity(2, "degC")
+    with pytest.raises(TypeError, match="Cannot multiply 'degree_Celsius'"):
+        make_quantity(2, "degC") * make_quantity(3, "m")
+    with pytest.raises(TypeError, match="Cannot divide 'degree_Fahrenheit'"):
+        make_quantity(3, "m") / make_quantity(50, "degF")
+    with pytest.raises(TypeError, match="Cannot negate 'degree_Fahrenheit'"):
+        -make_quantity(50, "degF")
+    with pytest.raises(TypeError, match="use a delta unit"):
+        make_quantity(1, "degC") * 2

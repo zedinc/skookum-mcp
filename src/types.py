@@ -319,8 +319,8 @@ class Quantity(Generic[T_Dim]):
         return other.__sub__(self)
 
     def __neg__(self) -> "Quantity[T_Dim]":
-        if self._is_absolute_temp():
-            raise TypeError("Nonsense: Cannot negate absolute temperatures.")
+        if self._is_offset_scale():
+            raise self._offset_scale_error("negate")
         new_val = -self.value
         expressed_val = (new_val - self.unit.offset) / self.unit.scale_factor
         return Quantity(expressed_val, self.unit)
@@ -330,8 +330,8 @@ class Quantity(Generic[T_Dim]):
         if isinstance(other, Unit):
             other = Quantity(1, other)
 
-        if self._is_absolute_temp() or (isinstance(other, Quantity) and other._is_absolute_temp()):
-            raise TypeError("Nonsense: Cannot multiply absolute temperatures.")
+        if self._is_offset_scale() or (isinstance(other, Quantity) and other._is_offset_scale()):
+            raise self._offset_scale_error("multiply", other)
 
         if isinstance(other, Quantity):
             from .engine import combine_cardinalities
@@ -348,8 +348,8 @@ class Quantity(Generic[T_Dim]):
             return Quantity(expressed_val, self.unit)
 
     def __rmul__(self, other: Union[int, float, Rational]) -> "Quantity[T_Dim]":
-        if self._is_absolute_temp():
-            raise TypeError("Nonsense: Cannot multiply absolute temperatures.")
+        if self._is_offset_scale():
+            raise self._offset_scale_error("multiply")
         return self.__mul__(other)
 
     def __truediv__(self, other: Union[int, float, Rational, "Quantity[Any]", Unit[Any]]) -> "Quantity[Any]":
@@ -357,8 +357,8 @@ class Quantity(Generic[T_Dim]):
         if isinstance(other, Unit):
             other = Quantity(1, other)
 
-        if self._is_absolute_temp() or (isinstance(other, Quantity) and other._is_absolute_temp()):
-            raise TypeError("Nonsense: Cannot divide absolute temperatures.")
+        if self._is_offset_scale() or (isinstance(other, Quantity) and other._is_offset_scale()):
+            raise self._offset_scale_error("divide", other)
 
         if isinstance(other, Quantity):
             from .engine import combine_cardinalities
@@ -376,8 +376,8 @@ class Quantity(Generic[T_Dim]):
 
     def __rtruediv__(self, other: Union[int, float, Rational]) -> "Quantity[Any]":
         from sympy import Rational
-        if self._is_absolute_temp():
-            raise TypeError("Nonsense: Cannot divide absolute temperatures.")
+        if self._is_offset_scale():
+            raise self._offset_scale_error("divide")
         val = Rational(other) if not isinstance(other, Rational) else other
         
         from .engine import combine_cardinalities
@@ -389,6 +389,18 @@ class Quantity(Generic[T_Dim]):
         
         new_val = (val / self.value) / new_scale
         return Quantity(new_val, res_unit)
+
+    def _is_offset_scale(self) -> bool:
+        """True if the unit's zero is not 'none of the quantity' (e.g. degC, degF), so it cannot be scaled."""
+        return self.unit.offset != 0
+
+    def _offset_scale_error(self, verb: str, other: Any = None) -> TypeError:
+        """Builds the error naming whichever operand actually has the offset scale."""
+        offender = self if self._is_offset_scale() else other
+        return TypeError(
+            f"Nonsense: Cannot {verb} '{offender.unit.name}': it is an offset-scale temperature, so its zero "
+            f"is not 'no temperature'. Convert to kelvin or use a delta unit (e.g. delta_degC)."
+        )
 
     def _is_absolute_temp(self) -> bool:
         # Check if the unit is temperature and is absolute (not relative delta)
