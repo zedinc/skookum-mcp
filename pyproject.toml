@@ -14,7 +14,7 @@ name = "skookum-mcp"
 version = "0.1.0"
 description = "A secure, mathematically precise, and self-contained MCP server for physical unit conversion and algebraic dimensional computation."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.0,<2",
     "pint>=0.22",

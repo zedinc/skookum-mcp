@@ -1,7 +1,7 @@
 import pytest
 from sympy import Rational
 from src.types import Quantity
-from src.parser import parse_and_evaluate, SecurityError, ExpressionParsingError
+from src.parser import parse_and_evaluate, preprocess_expression, SecurityError, ExpressionParsingError
 
 # ==========================================
 # 1. PARSER INPUT TOLERANCE TESTS
@@ -279,3 +279,8 @@ def test_parser_preprocesses_unicode_symbols_correctly(
     res = parse_and_evaluate(expression)
     assert isinstance(res, Quantity)
     assert res == Quantity(expected_value, expected_unit)
+
+
+def test_degree_symbols_normalise_in_preprocessing():
+    assert preprocess_expression("20°C") == "20 * degC"
+    assert preprocess_expression("68 °F") == "68 * degF"

@@ -81,6 +81,24 @@ class _SafeASTVisitor(ast.NodeVisitor):
         except Exception:
             raise ExpressionParsingError(f"Unrecognized unit or symbol '{name_id}' in expression.")
 
+# Longest first, so degree-scale symbols win over any bare-symbol mapping
+UNICODE_MAP = {
+    '°C': 'degC',
+    '℃': 'degC',
+    '°F': 'degF',
+    '℉': 'degF',
+    '°R': 'degR',
+    'π': 'pi',
+    'Ω': 'ohm',
+    'μ': 'micro',
+}
+
+def normalize_unicode_symbols(text: str) -> str:
+    """Maps Unicode math/unit symbols to their ASCII canonical names (ADR 0003)."""
+    for uni, asc in UNICODE_MAP.items():
+        text = text.replace(uni, asc)
+    return text
+
 def preprocess_expression(expr: str) -> str:
     """
     Normalizes natural phrasing and implicit syntax into standard mathematical format.
@@ -93,14 +111,8 @@ def preprocess_expression(expr: str) -> str:
     expr = expr.replace('^', '**')
     
     # Map standard Unicode symbols to ASCII equivalents (ADR 0003)
-    unicode_map = {
-        'π': 'pi',
-        'Ω': 'ohm',
-        'μ': 'micro'
-    }
-    for uni, asc in unicode_map.items():
-        expr = expr.replace(uni, asc)
-        
+    expr = normalize_unicode_symbols(expr)
+
     # Map common unit synonyms
     expr = re.sub(r'\bmpg\b', 'mile / gallon', expr, flags=re.IGNORECASE)
     expr = re.sub(r'\bl/100km\b', 'liter / (100 * kilometer)', expr, flags=re.IGNORECASE)
