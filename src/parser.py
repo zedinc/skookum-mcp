@@ -137,7 +137,10 @@ def preprocess_expression(expr: str) -> str:
     # Handle implicit multiplication between closing and opening brackets or words
     # e.g. "(10m)(5s)" -> "(10m) * (5s)"
     expr = re.sub(r'\)\s*([a-zA-Z_\d\[(])', r') * \1', expr)
-    
+
+    # `in` (inch) is a Python keyword and would fail ast.parse; run last so `2in` has become `2 * in`
+    expr = re.sub(r'\bin\b', 'inch', expr)
+
     return expr
 
 # Resource-exhaustion guards for exponentiation (the AST whitelist cannot stop `9**9**9`)

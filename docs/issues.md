@@ -93,9 +93,14 @@ In this repository, the label **`[ready-for-agent]`** indicates a triage status.
 ### Issue: Remaining strictness gaps
 *   **Backlog Type**: Technical / Code Backlog
 *   **Status**: `[STATUS: PARKED]`
-*   **Context**: `1 degC -> delta_degC` returns `274.15` instead of erroring; any reciprocal-dimension target is auto-inverted. `N*m` and `J` are intentionally interchangeable. Known bug: `in` (inch) is a Python keyword, so `2 in` fails to parse even though `units://supported` advertises it.
+*   **Context**: `1 degC -> delta_degC` returns `274.15` instead of erroring; any reciprocal-dimension target is auto-inverted. `N*m` and `J` are intentionally interchangeable.
 
 ### Issue: With/without-tool evaluation
 *   **Backlog Type**: Product Backlog
 *   **Status**: `[STATUS: PARKED]`
 *   **Context**: Nothing measures whether agents make fewer physics errors with Skookum. Build ~50 engineering word problems, run an agent with and without the server, score answer error and tool-call rate. Use the results to prioritise constants, angles, gauge pressure and quantity kinds.
+
+### Issue: `in` (inch) failed to parse
+*   **Backlog Type**: Technical / Code Backlog
+*   **Status**: `[STATUS: RESOLVED]`
+*   **Resolution**: `in` is a Python keyword, so `ast.parse` rejected `2 in`. The preprocessor now maps the standalone word to `inch` after implicit multiplication has run.

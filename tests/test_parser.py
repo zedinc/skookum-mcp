@@ -284,3 +284,19 @@ def test_parser_preprocesses_unicode_symbols_correctly(
 def test_degree_symbols_normalise_in_preprocessing():
     assert preprocess_expression("20°C") == "20 * degC"
     assert preprocess_expression("68 °F") == "68 * degF"
+
+
+@pytest.mark.parametrize("expr, expected", [
+    ("2 in", "2 * inch"),
+    ("2in", "2 * inch"),
+    ("(2)in", "(2) * inch"),
+    ("3 in ** 2", "3 * inch ** 2"),
+    ("2 min", "2 * min"),
+    ("2 sq_in", "2 * sq_in"),
+])
+def test_inch_abbreviation_avoids_the_python_keyword(expr, expected):
+    assert preprocess_expression(expr) == expected
+
+
+def test_inch_abbreviation_evaluates():
+    assert parse_and_evaluate("1 ft + 6 in").expressed_value == Rational(3, 2)

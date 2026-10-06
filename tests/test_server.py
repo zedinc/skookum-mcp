@@ -608,3 +608,10 @@ def test_exponent_resource_exhaustion_is_rejected_quickly(expr):
 def test_exponent_within_limits_still_evaluates():
     from src.server import dimensional_compute
     assert dimensional_compute("2 ** 100", "dimensionless") == "Result: 1.26765e+30 dimensionless"
+
+
+def test_inch_abbreviation_works_end_to_end():
+    from src.server import dimensional_compute
+    assert dimensional_compute("2 in", "mm") == "Result: 50.8 millimeter"
+    assert dimensional_compute("1 ft", "in") == "Result: 12 inch"
+    assert dimensional_compute("2 min", "s") == "Result: 120 second"
