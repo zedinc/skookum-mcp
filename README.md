@@ -69,7 +69,7 @@ When asked to perform physically impossible calculations, the engine elegantly b
 
 ## Agentic Interface (MCP)
 
-Skookum MCP exposes three first-class capabilities to AI agents under the Model Context Protocol:
+Skookum MCP exposes four capabilities to AI agents under the Model Context Protocol:
 
 ### 1. The Tool: `dimensional_compute`
 Let the agent safely evaluate physics formulas and target conversions.
@@ -98,13 +98,41 @@ Let the agent safely evaluate physics formulas and target conversions.
     }
     ```
 
-### 2. The Resource: `units://supported`
+**Ambiguous units.** Symbols like `pt` (pint / typographic point), `C` (coulomb / Celsius), `ton`, `gal`, `oz`, `cal` and `hp` are resolved from context when only one meaning is dimensionally valid (e.g. `12 pt + 2 inch` can only be a length), and the response says what it assumed. When context cannot decide, the tool returns `Ambiguous Unit:` plus JSON listing each candidate and the result it would give. The agent then re-calls with `assume`:
+```json
+{"expression": "1 ton", "target_unit": "kg", "assume": {"ton": "metric_ton"}}
+```
+Explicit spellings (`°C`, `°R`, `us_gallon`, `typographic_point`) are never ambiguous.
+
+### 2. The Tool: `set_unit_default`
+Fixes an ambiguous symbol for the rest of the session (in memory only), so the agent resolves `pt` once: `set_unit_default("pt", "typographic_point")`. It never touches your config file.
+
+### 3. The Resource: `units://ambiguous`
+Every ambiguous symbol with its candidates: id, unit, physical dimension and description.
+
+### 4. The Resource: `units://supported`
 Exposes the physical dimension catalog to guide the LLM's inputs dynamically and prevent formatting hallucinations.
 *   **URI**: `units://supported`
 *   **Returns**: A structured JSON mapping categories (length, force, energy, power, pressure, absolute/delta temperatures) to their canonical names.
 
-### 3. The Prompt: `verify_dimensional_consistency`
+### 5. The Prompt: `verify_dimensional_consistency`
 A workflow template instructing the LLM to scan technical reports, extract physical formulas, and call the computational tool to verify their mathematical correctness.
+
+---
+
+## Configuring Ambiguous-Unit Defaults
+
+No single default is right for everyone, so you choose yours. Create `~/.config/skookum/config.toml` (or point `SKOOKUM_CONFIG` at a file, e.g. via the `env` block of your MCP client config):
+
+```toml
+profile = "us"            # us | imperial | metric; breaks ties context cannot settle
+
+[defaults]                # per-symbol choices; these win over the profile
+ton = "short_ton"
+pt = "typographic_point"
+```
+
+Defaults only break ties: they never override what the surrounding expression makes unambiguous. See `units://ambiguous` for the available ids. The server only reads this file.
 
 ---
 
@@ -115,7 +143,7 @@ To navigate the technical specifications and architecture of Skookum MCP:
 *   **[CONTEXT.md](./CONTEXT.md)**: The core **Domain Glossary** defining key semantic concepts (Dimension, Cardinality, Unit, Quantity, Converter, Co-processor, AST Sandbox).
 *   **[docs/architecture.md](./docs/architecture.md)**: The **System Design Reference** mapping the step-by-step pipeline execution, AST sandbox whitelists, preprocessor translation grammar, and conversion logic calculations.
 *   **[docs/issues.md](./docs/issues.md)**: The **Active Issues Log & Roadmap** detailing planned transitions, caret bitwise operator compatibilities, long-term Pint decoupling plans, and linking active product specifications.
-*   **[docs/adr/](./docs/adr/)**: The **Architectural Decision Records (ADRs)** cataloging foundational engineering decisions and trade-offs (e.g. [ADR 0001](./docs/adr/0001-decouple-quantity-value-from-conversion-engine.md), [ADR 0002](./docs/adr/0002-represent-dimensions-statically-and-cardinalities-algebraically.md), and [ADR 0003](./docs/adr/0003-use-preprocessor-normalization-for-unicode-symbol-support.md)).
+*   **[docs/adr/](./docs/adr/)**: The **Architectural Decision Records (ADRs)** cataloging foundational engineering decisions and trade-offs (e.g. [ADR 0001](./docs/adr/0001-decouple-quantity-value-from-conversion-engine.md), [ADR 0002](./docs/adr/0002-represent-dimensions-statically-and-cardinalities-algebraically.md), and [ADR 0003](./docs/adr/0003-use-preprocessor-normalization-for-unicode-symbol-support.md), and [ADR 0004](./docs/adr/0004-resolve-ambiguous-unit-symbols-by-context-and-user-defaults.md)).
 
 ---
 

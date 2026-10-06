@@ -86,10 +86,14 @@ In this repository, the label **`[ready-for-agent]`** indicates a triage status.
 
 ## 3. Parked (from the 2026-10 project review)
 
-### Issue: Strictness gaps — silent choices instead of errors
+### Issue: Ambiguous Unit Symbols
+*   **Backlog Type**: Technical / Code Backlog
+*   **Status**: `[STATUS: RESOLVED]` — see [ADR 0004](./adr/0004-resolve-ambiguous-unit-symbols-by-context-and-user-defaults.md).
+
+### Issue: Remaining strictness gaps
 *   **Backlog Type**: Technical / Code Backlog
 *   **Status**: `[STATUS: PARKED]`
-*   **Context**: Observed by running the engine: `1 N*m -> J` and `1 Hz -> Bq` succeed (no quantity kinds); `ton` silently resolves to the US short ton, and `gallon`/`cup` to US customary; `1 degC -> delta_degC` returns `274.15` instead of erroring; any reciprocal-dimension target is auto-inverted. Decide whether each should error, require disambiguation, or be explicit opt-in.
+*   **Context**: `1 degC -> delta_degC` returns `274.15` instead of erroring; any reciprocal-dimension target is auto-inverted. `N*m` and `J` are intentionally interchangeable. Known bug: `in` (inch) is a Python keyword, so `2 in` fails to parse even though `units://supported` advertises it.
 
 ### Issue: With/without-tool evaluation
 *   **Backlog Type**: Product Backlog

@@ -129,3 +129,9 @@ The converter identifies this as a reciprocal physical relationship (e.g. `Miles
     $$\text{value}_{inv} = \frac{1}{\text{value}_{internal}}$$
 2.  Resolves an intermediate, inverted unit mapping.
 3.  Performs standard linear scale matching to output the correct target unit quantity, without an intermediate float step.
+
+---
+
+## 6. Ambiguous Unit Resolution
+
+Before evaluation, `resolve_ambiguities` (`src/ambiguity.py`) scans the preprocessed expression and the target unit for registered ambiguous symbols (`pt`, `C`, `ton`, ...). For each candidate assignment it substitutes fixed unit names and runs the normal parse/convert path; dimensionally invalid assignments are discarded. Hard bindings (`assume`, session defaults) restrict the candidates up front; config defaults and the profile only break ties among survivors. If several survive, the tool returns a structured `Ambiguous Unit` response. See [ADR 0004](./adr/0004-resolve-ambiguous-unit-symbols-by-context-and-user-defaults.md).

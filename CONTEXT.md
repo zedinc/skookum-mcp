@@ -22,6 +22,14 @@ A physical measurement. A Quantity gets its dimensionality directly from its ass
 - **Vector Quantity**: A Quantity defined by a **Scalar Quantity** associated with a direction (unit vector).
 _Avoid_: Measurement, coordinate
 
+**Ambiguous Symbol**:
+A unit symbol with more than one common meaning (e.g. `pt`, `C`, `ton`). Each meaning is a **Candidate** with a stable id (e.g. `typographic_point`). Resolved by explicit binding, then context, then user defaults (ADR 0004).
+_Avoid_: Alias, synonym
+
+**Profile**:
+A named preference (`us`, `imperial`, `metric`) in the user config that breaks ties between Candidates the context cannot separate.
+_Avoid_: Locale, region
+
 **Converter**:
 The domain module responsible for translating a physical Quantity into a target Unit of mathematically compatible dimensions.
 _Avoid_: Calculator, engine, translator
