@@ -100,6 +100,11 @@ In this repository, the label **`[ready-for-agent]`** indicates a triage status.
 *   **Status**: `[STATUS: PARKED]`
 *   **Context**: Nothing measures whether agents make fewer physics errors with Skookum. Build ~50 engineering word problems, run an agent with and without the server, score answer error and tool-call rate. Use the results to prioritise constants, angles, gauge pressure and quantity kinds.
 
+### Issue: Implicit multiplication binds left-to-right after `/`
+*   **Backlog Type**: Technical / Code Backlog
+*   **Status**: `[STATUS: OPEN]`
+*   **Context**: `10 m / 2 s` evaluates to metre-seconds (5 m*s), not 5 m/s, because `/ 2 s` becomes `(10 m / 2) * s`. Offset-scale temperatures are regrouped as a special case (ADR 0005), but general number-unit juxtaposition is not. Fixing it changes the meaning of `1/3 m`, so it needs a decision on convention first.
+
 ### Issue: `in` (inch) failed to parse
 *   **Backlog Type**: Technical / Code Backlog
 *   **Status**: `[STATUS: RESOLVED]`

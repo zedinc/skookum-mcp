@@ -104,6 +104,8 @@ Let the agent safely evaluate physics formulas and target conversions.
 ```
 Explicit spellings (`°C`, `°R`, `us_gallon`, `typographic_point`) are never ambiguous.
 
+**Temperatures.** `5 degC` can be a reading or a difference, and the expression decides (ADR 0005). Multiplying a reading converts it to kelvin first, as in gas-law work: `(101.325 kPa * 2 L) / (20 degC)` uses 293.15 K. A rate per degree Celsius (`kJ/(kg*degC) * 5 degC`) makes the `5 degC` a difference. If a reading sits next to a *per kelvin* rate (`kJ/(kg*K) * 5 degC`, `J/(mol*K) * 20 degC`), dimensions cannot tell a reading from a difference, so you get `Ambiguous Temperature Kind` with both results; settle it with `assume={"degC": "point"}` (or `"interval"`), or write `K` / `delta_degC`.
+
 ### 2. The Tool: `set_unit_default`
 Fixes an ambiguous symbol for the rest of the session (in memory only), so the agent resolves `pt` once: `set_unit_default("pt", "typographic_point")`. It never touches your config file.
 

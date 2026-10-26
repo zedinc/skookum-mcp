@@ -135,3 +135,9 @@ The converter identifies this as a reciprocal physical relationship (e.g. `Miles
 ## 6. Ambiguous Unit Resolution
 
 Before evaluation, `resolve_ambiguities` (`src/ambiguity.py`) scans the preprocessed expression and the target unit for registered ambiguous symbols (`pt`, `C`, `ton`, ...). For each candidate assignment it substitutes fixed unit names and runs the normal parse/convert path; dimensionally invalid assignments are discarded. Hard bindings (`assume`, session defaults) restrict the candidates up front; config defaults and the profile only break ties among survivors. If several survive, the tool returns a structured `Ambiguous Unit` response. See [ADR 0004](./adr/0004-resolve-ambiguous-unit-symbols-by-context-and-user-defaults.md).
+
+---
+
+## 7. Point vs. Interval Temperatures
+
+Offset-scale units (`degC`, `degF`) cannot be scaled as points. `src/affine.py` is the expression layer that decides, per occurrence, what each means before arithmetic runs (`Quantity` itself stays strict). The parser first regroups `<number> <offset unit>` into one literal. At each `*`, `/` and `**`, a point is then (1) treated as an interval if the other operand has the same scale in a rate denominator (found from the AST, since per-degC and per-K are numerically identical), (2) otherwise converted to its zero-based scale (`degC` -> `K`, `degF` -> `degR`), unless (3) the other operand is a per-kelvin rate, in which case both readings are evaluated and `Ambiguous Temperature Kind` is returned. See [ADR 0005](./adr/0005-infer-point-vs-interval-for-offset-scale-temperatures.md).

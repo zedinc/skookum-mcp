@@ -121,6 +121,8 @@ class Unit(Generic[T_Dim]):
         return self.name
 
     def __mul__(self, other: Any) -> Any:
+        # Composing units drops the offset on purpose: an offset unit inside a compound unit
+        # (kg*degC, kJ/degC) denotes a scale step, i.e. an interval (ADR 0005).
         if isinstance(other, (int, float, Rational)):
             return Quantity(other, self)
         if isinstance(other, Unit):

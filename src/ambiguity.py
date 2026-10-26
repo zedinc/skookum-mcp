@@ -13,6 +13,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
+EvalResult = Tuple[str, List[str]]  # (formatted result, assumption notes from evaluation)
+
 from .types import MathematicalError
 
 PROFILES = ("us", "imperial", "metric")
@@ -156,7 +158,7 @@ def _label(assignment: Assignment) -> Dict[str, str]:
 def resolve_ambiguities(
     expression: str,
     target_unit: str,
-    evaluate: Callable[[str, str], str],
+    evaluate: Callable[[str, str], EvalResult],
     assume: Optional[Mapping[str, str]] = None,
     session: Optional[Mapping[str, str]] = None,
     defaults: Optional[Mapping[str, str]] = None,
@@ -164,13 +166,13 @@ def resolve_ambiguities(
 ) -> Resolution:
     """
     Evaluates `expression` -> `target_unit` via `evaluate`, resolving ambiguous unit symbols.
-    `evaluate(expression, target)` must return the formatted result or raise on an invalid interpretation.
+    `evaluate(expression, target)` must return (formatted result, notes) or raise on an invalid interpretation.
     """
     from .parser import preprocess_expression, normalize_unicode_symbols
 
     if len(expression) > MAX_EXPRESSION_LENGTH:
         # Let the evaluator raise its own length error before any scanning work
-        return Resolution(evaluate(expression, target_unit))
+        return Resolution(*evaluate(expression, target_unit))
 
     pre_expr = preprocess_expression(expression)
     target = normalize_unicode_symbols(target_unit).strip()
@@ -179,7 +181,7 @@ def resolve_ambiguities(
     ambiguous = list(dict.fromkeys(t for t in expr_tokens + target_tokens if t in AMBIGUOUS))
     aliases = {t for t in expr_tokens + target_tokens if t in ALIASES and t not in AMBIGUOUS}
     if not ambiguous and not aliases:
-        return Resolution(evaluate(expression, target_unit))
+        return Resolution(*evaluate(expression, target_unit))
 
     if len(ambiguous) > MAX_AMBIGUOUS_TOKENS:
         from .parser import ExpressionParsingError
@@ -206,7 +208,7 @@ def resolve_ambiguities(
     alias_map = {a: ALIASES[a] for a in aliases}
     assignments: List[Assignment] = [tuple(zip(ambiguous, combo)) for combo in itertools.product(*options)]
 
-    def run(assignment: Assignment) -> str:
+    def run(assignment: Assignment) -> EvalResult:
         mapping = dict(alias_map)
         mapping.update({sym: cand.unit for sym, cand in assignment})
         sub = lambda text: _TOKEN.sub(lambda m: mapping.get(m.group(0), m.group(0)), text)
@@ -214,11 +216,11 @@ def resolve_ambiguities(
 
     if len(assignments) == 1:
         # Nothing to infer: evaluate directly so ordinary errors propagate unchanged
-        result = run(assignments[0])
+        result, eval_notes = run(assignments[0])
         notes = [f"{s} = {hard[s].id} ({sources[s]} binding)" for s in ambiguous if sources.get(s) == "session"]
-        return Resolution(result, notes)
+        return Resolution(result, notes + eval_notes)
 
-    survivors: List[Tuple[Assignment, str]] = []
+    survivors: List[Tuple[Assignment, EvalResult]] = []
     rejected: List[Tuple[Assignment, str]] = []
     for assignment in assignments:
         try:
@@ -233,7 +235,7 @@ def resolve_ambiguities(
             f"is dimensionally valid in this expression. {detail}"
         )
 
-    def distinct(rows: List[Tuple[Assignment, str]], sym: str) -> int:
+    def distinct(rows: List[Tuple[Assignment, EvalResult]], sym: str) -> int:
         return len({dict(a)[sym].id for a, _ in rows})
 
     free = [s for s in ambiguous if s not in hard]
@@ -259,7 +261,7 @@ def resolve_ambiguities(
                     {dict(a)[s].id: dict(a)[s] for a, _ in survivors}.values()]
                 for s in varying
             },
-            "interpretations": [{"assume": _label(a), "result": r} for a, r in survivors],
+            "interpretations": [{"assume": _label(a), "result": r[0]} for a, r in survivors],
             "rejected": [{"assume": _label(a), "reason": msg} for a, msg in rejected[:6]],
         }
         names = ", ".join(repr(s) for s in varying)
@@ -270,7 +272,7 @@ def resolve_ambiguities(
         )
         raise AmbiguousUnitError(message, payload)
 
-    assignment, result = survivors[0]
+    assignment, (result, eval_notes) = survivors[0]
     chosen = dict(assignment)
     notes = []
     for sym in ambiguous:
@@ -285,4 +287,4 @@ def resolve_ambiguities(
         else:
             why = f"'{profile}' profile"
         notes.append(f"{sym} = {chosen[sym].id} ({why})")
-    return Resolution(result, notes)
+    return Resolution(result, notes + eval_notes)

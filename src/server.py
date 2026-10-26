@@ -1,10 +1,11 @@
 import json
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from mcp.server.fastmcp import FastMCP
 from .types import Quantity, Unit, MathematicalError
 from .parser import parse_and_evaluate, SecurityError, ExpressionParsingError
 from .engine import convert_quantity, resolve_unit
-from .ambiguity import AmbiguousUnitError, AssumptionError, find_candidate, registry_listing, resolve_ambiguities
+from .ambiguity import ALIASES, AmbiguousUnitError, AssumptionError, find_candidate, registry_listing, resolve_ambiguities
+from .affine import KIND_NAMES, AmbiguousKindError, KindContext, canonical_scale_name, resolve_kinds
 from .config import Config, ConfigError, load_config
 
 # Initialize FastMCP Server
@@ -22,10 +23,10 @@ def _get_config() -> Config:
     return _config
 
 
-def _evaluate(expression: str, target_unit: str) -> str:
+def _evaluate_once(expression: str, target_unit: str, kinds: KindContext) -> str:
     """Parses, evaluates and converts one fully-specified expression, returning 'value unit'."""
     # 1. Parse and evaluate expression safely via AST sandbox
-    evaluated_qty = parse_and_evaluate(expression)
+    evaluated_qty = parse_and_evaluate(expression, kinds)
 
     # 2. Handle pure dimensionless numbers
     if not isinstance(evaluated_qty, Quantity):
@@ -38,6 +39,24 @@ def _evaluate(expression: str, target_unit: str) -> str:
 
     # 4. Format output as a decimal to 6 significant figures
     return f"{float(result.expressed_value):.6g} {result.unit_name}"
+
+
+def _split_assume(assume: Optional[Dict[str, str]]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Separates unit-symbol assumptions ({'pt': 'us_pint'}) from temperature-kind ones ({'degC': 'point'})."""
+    units: Dict[str, str] = {}
+    kinds: Dict[str, str] = {}
+    for symbol, value in (assume or {}).items():
+        if value in KIND_NAMES:
+            scale = canonical_scale_name(ALIASES.get(symbol, symbol))
+            if scale is None:
+                raise AssumptionError(
+                    f"'{symbol}' is not an offset-scale temperature; use degC or degF with 'point' or 'interval'."
+                )
+            kinds[scale] = value
+        else:
+            units[symbol] = value
+    return units, kinds
+
 
 @mcp.tool()
 def dimensional_compute(expression: str, target_unit: str, assume: Optional[Dict[str, str]] = None) -> str:
@@ -60,9 +79,11 @@ def dimensional_compute(expression: str, target_unit: str, assume: Optional[Dict
     """
     try:
         config = _get_config()
+        unit_assume, kind_assume = _split_assume(assume)
+        evaluate = lambda expr, target: resolve_kinds(lambda kinds: _evaluate_once(expr, target, kinds), kind_assume)
         resolution = resolve_ambiguities(
-            expression, target_unit, _evaluate,
-            assume=assume, session=_session_defaults,
+            expression, target_unit, evaluate,
+            assume=unit_assume, session=_session_defaults,
             defaults=config.defaults, profile=config.profile,
         )
         out = f"Result: {resolution.value}"
@@ -72,6 +93,8 @@ def dimensional_compute(expression: str, target_unit: str, assume: Optional[Dict
 
     except AmbiguousUnitError as e:
         return f"Ambiguous Unit: {e.message}\n{json.dumps(e.payload, indent=2)}"
+    except AmbiguousKindError as e:
+        return f"Ambiguous Temperature Kind: {e.message}\n{json.dumps(e.payload, indent=2)}"
     except AssumptionError as e:
         return f"Assumption Error: {e}"
     except ConfigError as e:

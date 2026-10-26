@@ -503,9 +503,10 @@ def test_parser_zero_division_error_directly():
 def test_parser_unsupported_ast_node_evaluation():
     """Verify direct AST evaluator throws on completely unsupported node types."""
     from src.parser import _evaluate_ast_node
+    from src.affine import KindContext
     import ast
     with pytest.raises(AttributeError, match="'Pass' object has no attribute 'left'"):
-        _evaluate_ast_node(ast.Pass())
+        _evaluate_ast_node(ast.Pass(), KindContext())
 
 
 @pytest.mark.conversion
@@ -617,8 +618,9 @@ def test_inch_abbreviation_works_end_to_end():
     assert dimensional_compute("2 min", "s") == "Result: 120 second"
 
 
-def test_kelvin_is_scalable_but_celsius_is_not_end_to_end():
+def test_kelvin_scales_and_celsius_is_converted_end_to_end():
     from src.server import dimensional_compute
     assert dimensional_compute("10 K * 2 m", "K*m") == "Result: 20 kelvin * meter"
     res = dimensional_compute("3 m * 2 degC", "m*K")
-    assert res.startswith("Type Error: Nonsense: Cannot multiply 'degree_Celsius'")
+    assert res.startswith("Result: 825.45 kelvin * meter")
+    assert "2 degree_Celsius converted to 275.15 kelvin" in res

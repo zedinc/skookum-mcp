@@ -30,6 +30,10 @@ _Avoid_: Alias, synonym
 A named preference (`us`, `imperial`, `metric`) in the user config that breaks ties between Candidates the context cannot separate.
 _Avoid_: Locale, region
 
+**Point / Interval**:
+A temperature is either a point on a scale (a reading: 20 degC) or an interval (a difference: 5 delta_degC). The unit alone does not say which; the expression does (ADR 0005). Only offset-scale units (degC, degF) cannot be scaled as points, so they are converted to their zero-based scale (K, degR) before multiplying.
+_Avoid_: Absolute/relative temperature
+
 **Converter**:
 The domain module responsible for translating a physical Quantity into a target Unit of mathematically compatible dimensions.
 _Avoid_: Calculator, engine, translator

@@ -1,8 +1,9 @@
 import ast
 import re
-from typing import Any, Union, cast
+from typing import Any, Optional, Union, cast
 from sympy import Rational, pi, E
 from .types import Quantity, Unit, Dimensionless
+from .affine import KindContext, prepare_multiplicative, prepare_power_base, regroup_temperature_literals
 
 class SecurityError(Exception):
     """Exception raised when an expression fails AST security validation."""
@@ -156,10 +157,10 @@ def _check_pow_bounds(base: Any, exponent: Any) -> None:
         if (base.p.bit_length() + base.q.bit_length()) * exp_mag > MAX_RESULT_BITS:
             raise ExpressionParsingError("Result of exponentiation exceeds the maximum allowed size.")
 
-def _evaluate_ast_node(node: ast.AST) -> Union[Rational, Quantity[Any]]:
+def _evaluate_ast_node(node: ast.AST, kinds: KindContext) -> Union[Rational, Quantity[Any]]:
     """Recursively evaluates an AST node using SymPy and custom Quantity classes securely."""
     if isinstance(node, ast.Expression):
-        return _evaluate_ast_node(node.body)
+        return _evaluate_ast_node(node.body, kinds)
 
     elif isinstance(node, ast.Constant):
         return Rational(str(node.value))
@@ -177,7 +178,7 @@ def _evaluate_ast_node(node: ast.AST) -> Union[Rational, Quantity[Any]]:
             return resolve_unit(name_id)
 
     elif isinstance(node, ast.UnaryOp):
-        operand = _evaluate_ast_node(node.operand)
+        operand = _evaluate_ast_node(node.operand, kinds)
         if isinstance(node.op, ast.UAdd):
             return operand
         return -operand  # _SafeASTVisitor guarantees op is USub if it's not UAdd
@@ -185,10 +186,12 @@ def _evaluate_ast_node(node: ast.AST) -> Union[Rational, Quantity[Any]]:
     else:
         # Must be ast.BinOp because _SafeASTVisitor strictly whitelists these classes
         node = cast(ast.BinOp, node)
-        left = _evaluate_ast_node(node.left)
-        right = _evaluate_ast_node(node.right)
+        left = _evaluate_ast_node(node.left, kinds)
+        right = _evaluate_ast_node(node.right, kinds)
 
         op = node.op
+        if isinstance(op, (ast.Mult, ast.Div)):
+            left, right = prepare_multiplicative(left, right, node.left, node.right, kinds)
         if isinstance(op, ast.Add):
             return left + right
         elif isinstance(op, ast.Sub):
@@ -209,6 +212,7 @@ def _evaluate_ast_node(node: ast.AST) -> Union[Rational, Quantity[Any]]:
             else:
                 exponent = right
             
+            left = prepare_power_base(left, node.left, kinds)
             _check_pow_bounds(left.expressed_value if isinstance(left, Quantity) else left, exponent)
             if isinstance(left, Quantity):
                 new_card = {k: v * int(exponent) for k, v in left.unit.cardinality.items()}
@@ -218,10 +222,11 @@ def _evaluate_ast_node(node: ast.AST) -> Union[Rational, Quantity[Any]]:
             else:
                 return left ** exponent
 
-def parse_and_evaluate(expression: str) -> Union[Rational, Quantity[Any]]:
+def parse_and_evaluate(expression: str, kinds: Optional[KindContext] = None) -> Union[Rational, Quantity[Any]]:
     """
     Parses, sandboxes, and evaluates an expression string.
     Raises SecurityError or ExpressionParsingError if unsafe or grammatically invalid.
+    `kinds` carries the point-vs-interval context for offset-scale temperatures (ADR 0005).
     """
     # Upfront DoS validation complexity guards
     if len(expression) > 500:
@@ -247,7 +252,8 @@ def parse_and_evaluate(expression: str) -> Union[Rational, Quantity[Any]]:
     visitor.visit(tree)
 
     # Secure evaluation
-    result = _evaluate_ast_node(tree)
+    tree = regroup_temperature_literals(tree)
+    result = _evaluate_ast_node(tree, kinds or KindContext())
     if isinstance(result, Unit):
         return Quantity(1, result)
     return result
