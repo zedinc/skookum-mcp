@@ -3,7 +3,8 @@ import re
 from typing import Any, Optional, Union, cast
 from sympy import Rational, pi, E
 from .types import Quantity, Unit, Dimensionless
-from .affine import KindContext, prepare_multiplicative, prepare_power_base, regroup_temperature_literals
+from .affine import prepare_multiplicative, prepare_power_base, regroup_temperature_literals
+from .readings import ReadingContext
 
 class SecurityError(Exception):
     """Exception raised when an expression fails AST security validation."""
@@ -157,7 +158,7 @@ def _check_pow_bounds(base: Any, exponent: Any) -> None:
         if (base.p.bit_length() + base.q.bit_length()) * exp_mag > MAX_RESULT_BITS:
             raise ExpressionParsingError("Result of exponentiation exceeds the maximum allowed size.")
 
-def _evaluate_ast_node(node: ast.AST, kinds: KindContext) -> Union[Rational, Quantity[Any]]:
+def _evaluate_ast_node(node: ast.AST, kinds: ReadingContext) -> Union[Rational, Quantity[Any]]:
     """Recursively evaluates an AST node using SymPy and custom Quantity classes securely."""
     if isinstance(node, ast.Expression):
         return _evaluate_ast_node(node.body, kinds)
@@ -222,7 +223,7 @@ def _evaluate_ast_node(node: ast.AST, kinds: KindContext) -> Union[Rational, Qua
             else:
                 return left ** exponent
 
-def parse_and_evaluate(expression: str, kinds: Optional[KindContext] = None) -> Union[Rational, Quantity[Any]]:
+def parse_and_evaluate(expression: str, kinds: Optional[ReadingContext] = None) -> Union[Rational, Quantity[Any]]:
     """
     Parses, sandboxes, and evaluates an expression string.
     Raises SecurityError or ExpressionParsingError if unsafe or grammatically invalid.
@@ -253,7 +254,7 @@ def parse_and_evaluate(expression: str, kinds: Optional[KindContext] = None) -> 
 
     # Secure evaluation
     tree = regroup_temperature_literals(tree)
-    result = _evaluate_ast_node(tree, kinds or KindContext())
+    result = _evaluate_ast_node(tree, kinds or ReadingContext())
     if isinstance(result, Unit):
         return Quantity(1, result)
     return result

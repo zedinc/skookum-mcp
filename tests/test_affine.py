@@ -2,7 +2,8 @@ import json
 import pytest
 
 from src import server
-from src.affine import KindContext, canonical_scale_name, resolve_kinds, AmbiguousKindError
+from src.affine import canonical_scale_name
+from src.readings import ReadingContext, ReadingQuestion, resolve_readings
 from src.config import Config
 from src.parser import parse_and_evaluate
 from src.server import dimensional_compute
@@ -178,37 +179,51 @@ def test_parse_and_evaluate_without_kinds_still_works():
     assert parse_and_evaluate("5 m").expressed_value == 5
 
 
-def test_resolve_kinds_depth_limit():
-    from src.affine import KindQuestion
-
-    def always_ask(ctx: KindContext) -> str:
-        raise KindQuestion(len(ctx.overrides), f"lit{len(ctx.overrides)}", "degC", {"point": "p", "interval": "i"})
-
-    with pytest.raises(TypeError, match="Too many ambiguous temperature readings"):
-        resolve_kinds(always_ask)
+def _question(key, label="lit"):
+    return ReadingQuestion(key, "temperature_kind", label, "degC", {"point": "p", "interval": "i"}, "summary.", "escape")
 
 
-def test_resolve_kinds_all_readings_invalid():
-    from src.affine import KindQuestion
+def test_resolve_readings_depth_limit():
+    def always_ask(ctx: ReadingContext) -> str:
+        raise _question(len(ctx.overrides), f"lit{len(ctx.overrides)}")
 
-    def run(ctx: KindContext) -> str:
+    with pytest.raises(TypeError, match="Too many ambiguous readings"):
+        resolve_readings(always_ask)
+
+
+def test_resolve_readings_all_options_invalid():
+    def run(ctx: ReadingContext) -> str:
         if not ctx.overrides:
-            raise KindQuestion("k", "lit", "degC", {"point": "p", "interval": "i"})
+            raise _question("k")
         raise TypeError("bad")
 
-    with pytest.raises(TypeError, match="No reading of the ambiguous temperature"):
-        resolve_kinds(run)
+    with pytest.raises(TypeError, match="No reading of the ambiguous expression is valid"):
+        resolve_readings(run)
 
 
-def test_resolve_kinds_single_valid_reading_notes_it():
-    from src.affine import KindQuestion
-
-    def run(ctx: KindContext) -> str:
+def test_resolve_readings_single_valid_option_notes_it():
+    def run(ctx: ReadingContext) -> str:
         if not ctx.overrides:
-            raise KindQuestion("k", "5 degree_Celsius", "degC", {"point": "p", "interval": "i"})
+            raise _question("k", "5 degree_Celsius")
         if ctx.overrides["k"] == "interval":
             raise TypeError("interval invalid")
         return "1 kelvin"
 
-    text, notes = resolve_kinds(run)
-    assert text == "1 kelvin" and "5 degree_Celsius read as a point" in notes[0]
+    text, notes = resolve_readings(run)
+    assert text == "1 kelvin" and "5 degree_Celsius read as 'point'" in notes[0]
+
+
+def test_resolve_readings_mixed_topics_use_a_generic_title():
+    from src.readings import AmbiguousReadingError
+
+    def run(ctx: ReadingContext) -> str:
+        if "a" not in ctx.overrides:
+            raise _question("a", "first")
+        if "b" not in ctx.overrides:
+            raise ReadingQuestion("b", "fraction_unit", "second", "fraction_unit",
+                                  {"scalar": "s", "divisor": "d"}, "other summary.", "other escape")
+        return str(sorted(ctx.overrides.items()))
+
+    with pytest.raises(AmbiguousReadingError) as exc:
+        resolve_readings(run)
+    assert exc.value.title == "Ambiguous Reading"

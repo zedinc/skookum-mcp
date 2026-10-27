@@ -5,7 +5,8 @@ from .types import Quantity, Unit, MathematicalError
 from .parser import parse_and_evaluate, SecurityError, ExpressionParsingError
 from .engine import convert_quantity, resolve_unit
 from .ambiguity import ALIASES, AmbiguousUnitError, AssumptionError, find_candidate, registry_listing, resolve_ambiguities
-from .affine import KIND_NAMES, AmbiguousKindError, KindContext, canonical_scale_name, resolve_kinds
+from .affine import KIND_NAMES, normalize_reading
+from .readings import FRACTION_KEY, AmbiguousReadingError, ReadingContext, resolve_readings
 from .config import Config, ConfigError, load_config
 
 # Initialize FastMCP Server
@@ -14,6 +15,7 @@ mcp = FastMCP("Skookum MCP Server")
 # Per-process state: the config is read once (never written); session defaults live only in memory
 _config: Optional[Config] = None
 _session_defaults: Dict[str, str] = {}
+_session_readings: Dict[str, str] = {}  # recorded reading decisions, canonical key -> choice
 
 
 def _get_config() -> Config:
@@ -23,7 +25,7 @@ def _get_config() -> Config:
     return _config
 
 
-def _evaluate_once(expression: str, target_unit: str, kinds: KindContext) -> str:
+def _evaluate_once(expression: str, target_unit: str, kinds: ReadingContext) -> str:
     """Parses, evaluates and converts one fully-specified expression, returning 'value unit'."""
     # 1. Parse and evaluate expression safely via AST sandbox
     evaluated_qty = parse_and_evaluate(expression, kinds)
@@ -42,20 +44,30 @@ def _evaluate_once(expression: str, target_unit: str, kinds: KindContext) -> str
 
 
 def _split_assume(assume: Optional[Dict[str, str]]) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Separates unit-symbol assumptions ({'pt': 'us_pint'}) from temperature-kind ones ({'degC': 'point'})."""
+    """Separates unit-symbol assumptions ({'pt': 'us_pint'}) from reading decisions ({'degC': 'point'})."""
     units: Dict[str, str] = {}
-    kinds: Dict[str, str] = {}
+    readings: Dict[str, str] = {}
     for symbol, value in (assume or {}).items():
-        if value in KIND_NAMES:
-            scale = canonical_scale_name(ALIASES.get(symbol, symbol))
-            if scale is None:
-                raise AssumptionError(
-                    f"'{symbol}' is not an offset-scale temperature; use degC or degF with 'point' or 'interval'."
-                )
-            kinds[scale] = value
+        if symbol == FRACTION_KEY or value in KIND_NAMES:
+            try:
+                key, choice = normalize_reading(ALIASES.get(symbol, symbol), value)
+            except ValueError as e:
+                raise AssumptionError(str(e))
+            readings[key] = choice
         else:
             units[symbol] = value
-    return units, kinds
+    return units, readings
+
+
+def _reading_decisions(config: Config, per_call: Dict[str, str]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Merges recorded reading decisions; later sources win: config, then session, then this call."""
+    decisions: Dict[str, str] = {}
+    sources: Dict[str, str] = {}
+    for source, layer in (("configured default", config.readings), ("session decision", _session_readings),
+                          ("assumed by caller", per_call)):
+        for key, choice in layer.items():
+            decisions[key], sources[key] = choice, source
+    return decisions, sources
 
 
 @mcp.tool()
@@ -79,8 +91,10 @@ def dimensional_compute(expression: str, target_unit: str, assume: Optional[Dict
     """
     try:
         config = _get_config()
-        unit_assume, kind_assume = _split_assume(assume)
-        evaluate = lambda expr, target: resolve_kinds(lambda kinds: _evaluate_once(expr, target, kinds), kind_assume)
+        unit_assume, call_readings = _split_assume(assume)
+        decisions, sources = _reading_decisions(config, call_readings)
+        evaluate = lambda expr, target: resolve_readings(
+            lambda ctx: _evaluate_once(expr, target, ctx), decisions, sources)
         resolution = resolve_ambiguities(
             expression, target_unit, evaluate,
             assume=unit_assume, session=_session_defaults,
@@ -93,8 +107,8 @@ def dimensional_compute(expression: str, target_unit: str, assume: Optional[Dict
 
     except AmbiguousUnitError as e:
         return f"Ambiguous Unit: {e.message}\n{json.dumps(e.payload, indent=2)}"
-    except AmbiguousKindError as e:
-        return f"Ambiguous Temperature Kind: {e.message}\n{json.dumps(e.payload, indent=2)}"
+    except AmbiguousReadingError as e:
+        return f"{e.title}: {e.message}\n{json.dumps(e.payload, indent=2)}"
     except AssumptionError as e:
         return f"Assumption Error: {e}"
     except ConfigError as e:
@@ -125,6 +139,21 @@ def set_unit_default(symbol: str, candidate: str) -> str:
         return f"Assumption Error: {e}"
     _session_defaults[symbol] = cand.id
     return f"Session default set: {symbol} = {cand.id} ({cand.description})."
+
+@mcp.tool()
+def set_reading_default(question: str, choice: str) -> str:
+    """
+    Records a decision about an ambiguous reading for the rest of this session (in memory only; the config file
+    is never modified), so the same question is not asked again. Questions: 'fraction_unit' with 'scalar'
+    ((10/2) s) or 'divisor' (10/(2 s)); 'degC' or 'degF' with 'point' (a reading, converted to kelvin/rankine)
+    or 'interval' (a difference). Example: set_reading_default("fraction_unit", "scalar").
+    """
+    try:
+        key, value = normalize_reading(ALIASES.get(question, question), choice)
+    except ValueError as e:
+        return f"Assumption Error: {e}"
+    _session_readings[key] = value
+    return f"Reading default recorded: {question} = {value}."
 
 @mcp.resource("units://ambiguous")
 def list_ambiguous_units() -> str:

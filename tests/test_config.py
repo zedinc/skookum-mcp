@@ -15,12 +15,21 @@ def test_load_config_reads_profile_and_defaults(tmp_path, monkeypatch):
     assert load_config() == Config(profile="us", defaults={"pt": "typographic_point"})
 
 
+def test_load_config_reads_reading_decisions(tmp_path, monkeypatch):
+    write_config(tmp_path, monkeypatch, '[readings]\nfraction_unit = "scalar"\ndegC = "point"\n')
+    assert load_config().readings == {"fraction_unit": "scalar", "degree_Celsius": "point"}
+
+
 @pytest.mark.parametrize("text, fragment", [
     ('profile = "martian"', "profile must be one of"),
     ("[defaults]\nzzz = 'x'", "not an ambiguous unit symbol"),
     ("[defaults]\nton = 'heavy_ton'", "not a candidate"),
     ("defaults = 3", "[defaults] must be a table"),
     ("profile = ", "Invalid TOML"),
+    ("[readings]\nfraction_unit = 'both'", "not a choice for 'fraction_unit'"),
+    ("[readings]\nm = 'point'", "not a reading question"),
+    ("[readings]\ndegC = 'scalar'", "not a choice for 'degC'"),
+    ("readings = 3", "[readings] must be a table"),
 ])
 def test_load_config_validates(tmp_path, monkeypatch, text, fragment):
     write_config(tmp_path, monkeypatch, text)

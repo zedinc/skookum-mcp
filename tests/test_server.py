@@ -503,10 +503,10 @@ def test_parser_zero_division_error_directly():
 def test_parser_unsupported_ast_node_evaluation():
     """Verify direct AST evaluator throws on completely unsupported node types."""
     from src.parser import _evaluate_ast_node
-    from src.affine import KindContext
+    from src.readings import ReadingContext
     import ast
     with pytest.raises(AttributeError, match="'Pass' object has no attribute 'left'"):
-        _evaluate_ast_node(ast.Pass(), KindContext())
+        _evaluate_ast_node(ast.Pass(), ReadingContext())
 
 
 @pytest.mark.conversion

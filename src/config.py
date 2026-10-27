@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional
 
+from .affine import normalize_reading
 from .ambiguity import PROFILES, AssumptionError, find_candidate
 
 
@@ -16,6 +17,7 @@ class ConfigError(ValueError):
 class Config:
     profile: Optional[str] = None
     defaults: Dict[str, str] = field(default_factory=dict)
+    readings: Dict[str, str] = field(default_factory=dict)  # canonical reading key -> choice
 
 
 def config_path() -> Optional[Path]:
@@ -52,4 +54,15 @@ def load_config() -> Config:
             find_candidate(symbol, candidate_id)
         except AssumptionError as e:
             raise ConfigError(f"Bad [defaults] entry in '{path}': {e}")
-    return Config(profile=profile, defaults=dict(defaults))
+
+    raw_readings = data.get("readings", {})
+    if not isinstance(raw_readings, dict):
+        raise ConfigError(f"[readings] must be a table in '{path}'.")
+    readings: Dict[str, str] = {}
+    for question, choice in raw_readings.items():
+        try:
+            key, value = normalize_reading(question, choice)
+        except ValueError as e:
+            raise ConfigError(f"Bad [readings] entry in '{path}': {e}")
+        readings[key] = value
+    return Config(profile=profile, defaults=dict(defaults), readings=readings)

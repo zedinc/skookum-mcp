@@ -7,14 +7,14 @@ occurrence means *before* arithmetic happens:
 
 1. Forced interval: the other operand has the same scale in a rate denominator (`kJ/(kg*degC) * 5 degC`).
 2. Unforced point: converted to its zero-based scale (degC -> K, degF -> degR) by physical convention.
-3. Competing readings (the other operand is a "per kelvin" rate): both are evaluated and reported.
+3. Competing readings (the other operand is a "per kelvin" rate): raised as a ReadingQuestion for the caller.
 """
 import ast
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from .engine import convert_quantity, resolve_unit
-from .types import MathematicalError, Quantity, Unit
+from .readings import FRACTION_CHOICES, FRACTION_KEY, ReadingContext, ReadingQuestion
+from .types import Quantity, Unit
 
 # canonical point-scale name -> (interval unit, zero-based scale used for multiplicative operations, short symbol)
 OFFSET_SCALES: Dict[str, Tuple[str, str, str]] = {
@@ -22,29 +22,7 @@ OFFSET_SCALES: Dict[str, Tuple[str, str, str]] = {
     "degree_Fahrenheit": ("delta_degree_Fahrenheit", "degree_Rankine", "degF"),
 }
 KIND_NAMES = ("point", "interval")
-MAX_AMBIGUOUS_OCCURRENCES = 3
-
-
-class KindQuestion(Exception):
-    """Internal: raised at an occurrence whose reading is not settled by the expression."""
-    def __init__(self, key: Any, literal: str, symbol: str, readings: Dict[str, str]):
-        super().__init__(literal)
-        self.key, self.literal, self.symbol, self.readings = key, literal, symbol, readings
-
-
-class AmbiguousKindError(Exception):
-    """More than one reading of an offset-scale temperature is valid, and nothing settles it."""
-    def __init__(self, message: str, payload: Dict[str, Any]):
-        super().__init__(message)
-        self.message = message
-        self.payload = payload
-
-
-@dataclass
-class KindContext:
-    assume: Dict[str, str] = field(default_factory=dict)        # canonical scale name -> point|interval
-    overrides: Dict[Any, str] = field(default_factory=dict)     # occurrence key -> point|interval (branching)
-    notes: List[str] = field(default_factory=list)
+TEMPERATURE_TOPIC = "temperature_kind"
 
 
 def canonical_scale_name(symbol: str) -> Optional[str]:
@@ -54,6 +32,24 @@ def canonical_scale_name(symbol: str) -> Optional[str]:
     except Exception:
         return None
     return name if name in OFFSET_SCALES else None
+
+
+def normalize_reading(key: str, value: str) -> Tuple[str, str]:
+    """
+    Validates a recorded reading decision and returns its canonical (key, choice):
+    ('fraction_unit', 'scalar'|'divisor') or (<canonical scale name>, 'point'|'interval').
+    """
+    if key == FRACTION_KEY:
+        if value not in FRACTION_CHOICES:
+            raise ValueError(f"'{value}' is not a choice for '{FRACTION_KEY}'. Options: {', '.join(FRACTION_CHOICES)}.")
+        return key, value
+    scale = canonical_scale_name(key)
+    if scale is None:
+        raise ValueError(f"'{key}' is not a reading question. Use '{FRACTION_KEY}', or degC / degF with "
+                         f"'point' or 'interval'.")
+    if value not in KIND_NAMES:
+        raise ValueError(f"'{value}' is not a choice for '{key}'. Options: {', '.join(KIND_NAMES)}.")
+    return scale, value
 
 
 # --- AST helpers ---
@@ -132,7 +128,7 @@ def _fmt(value: Any) -> str:
 
 
 def _resolve_point(point: Quantity, other: Any, point_node: ast.AST, other_node: ast.AST,
-                   ctx: KindContext) -> Quantity:
+                   ctx: ReadingContext) -> Quantity:
     name = point.unit.name
     interval_name, absolute_name, symbol = OFFSET_SCALES[name]
     literal = f"{_fmt(point.expressed_value)} {name}"
@@ -144,18 +140,22 @@ def _resolve_point(point: Quantity, other: Any, point_node: ast.AST, other_node:
     if name in _rate_scales(other_node):
         kind, reason = "interval", f"the other operand is a rate per {symbol}"
     else:
-        kind = ctx.overrides.get(key)
-        reason = "one possible reading" if kind else None
-        if kind is None:
-            kind = ctx.assume.get(name)
-            reason = "assumed by caller" if kind else None
-        if kind is None:
+        decided = ctx.decision(name, key)
+        if decided is None:
             if _per_kelvin(other):
-                raise KindQuestion(key, literal, symbol, {
-                    "point": f"temperature reading, converted to {_fmt(as_absolute.expressed_value)} {absolute_name}",
-                    "interval": f"temperature difference of {_fmt(point.expressed_value)} {interval_name}",
-                })
-            kind = "point"
+                raise ReadingQuestion(
+                    key, TEMPERATURE_TOPIC, literal, symbol,
+                    {
+                        "point": f"temperature reading, converted to {_fmt(as_absolute.expressed_value)} {absolute_name}",
+                        "interval": f"temperature difference of {_fmt(point.expressed_value)} {interval_name}",
+                    },
+                    f"'{literal}' could be a temperature reading (converted to its zero-based scale before "
+                    f"multiplying) or a temperature difference.",
+                    "write the unit you mean (K, delta_degC, delta_degF)",
+                )
+            kind, reason = "point", None
+        else:
+            kind, reason = decided
 
     if kind == "interval":
         ctx.notes.append(f"{literal} treated as {interval_name} ({reason})")
@@ -166,7 +166,7 @@ def _resolve_point(point: Quantity, other: Any, point_node: ast.AST, other_node:
 
 
 def prepare_multiplicative(left: Any, right: Any, left_node: ast.AST, right_node: ast.AST,
-                           ctx: KindContext) -> Tuple[Any, Any]:
+                           ctx: ReadingContext) -> Tuple[Any, Any]:
     """Applies the ADR 0005 rules to the operands of `*` and `/` before the Quantity arithmetic runs."""
     out = []
     for x, other, x_node, other_node in ((left, right, left_node, right_node), (right, left, right_node, left_node)):
@@ -180,7 +180,7 @@ def prepare_multiplicative(left: Any, right: Any, left_node: ast.AST, right_node
     return out[0], out[1]
 
 
-def prepare_power_base(base: Any, base_node: ast.AST, ctx: KindContext) -> Any:
+def prepare_power_base(base: Any, base_node: ast.AST, ctx: ReadingContext) -> Any:
     """A point raised to a power is converted to its zero-based scale, like any other multiplicative use."""
     if _is_point(base):
         _, absolute_name, _ = OFFSET_SCALES[base.unit.name]
@@ -189,65 +189,3 @@ def prepare_power_base(base: Any, base_node: ast.AST, ctx: KindContext) -> Any:
                          f"{_fmt(converted.expressed_value)} {absolute_name} (offset-scale temperature raised to a power)")
         return converted
     return base
-
-
-# --- Branching over unsettled readings ---
-
-def resolve_kinds(run: Callable[[KindContext], str], assume: Optional[Dict[str, str]] = None) -> Tuple[str, List[str]]:
-    """
-    Calls `run(ctx)` (parse, evaluate, convert, format). If an occurrence is unsettled, re-runs under each
-    reading and either settles on the single valid one or raises AmbiguousKindError.
-    """
-    assume = dict(assume or {})
-    leaves: List[Tuple[Dict[Any, str], str, List[str]]] = []
-    rejected: List[Tuple[Dict[Any, str], str]] = []
-    literals: Dict[Any, str] = {}
-    symbols: set = set()
-    readings: Dict[str, Dict[str, str]] = {}
-
-    def branch(overrides: Dict[Any, str]) -> None:
-        ctx = KindContext(assume=assume, overrides=dict(overrides))
-        try:
-            text = run(ctx)
-        except KindQuestion as q:
-            if len(overrides) >= MAX_AMBIGUOUS_OCCURRENCES:
-                raise TypeError("Too many ambiguous temperature readings in one expression; "
-                                "write K or delta_degC explicitly.")
-            literals[q.key] = q.literal
-            symbols.add(q.symbol)
-            readings[q.literal] = q.readings
-            for kind in KIND_NAMES:
-                branch({**overrides, q.key: kind})
-            return
-        except (TypeError, MathematicalError, ZeroDivisionError) as err:
-            if not overrides:
-                raise
-            rejected.append((overrides, str(err)))
-            return
-        leaves.append((overrides, text, ctx.notes))
-
-    branch({})
-
-    def label(overrides: Dict[Any, str]) -> Dict[str, str]:
-        return {literals[k]: kind for k, kind in overrides.items()}
-
-    if not leaves:
-        detail = "; ".join(f"{label(o)}: {m}" for o, m in rejected[:4])
-        raise TypeError(f"No reading of the ambiguous temperature(s) is valid in this expression. {detail}")
-    if len(leaves) == 1:
-        overrides, text, notes = leaves[0]
-        extra = [f"{lit} read as a {kind} (the other reading is invalid here)" for lit, kind in label(overrides).items()]
-        return text, notes + extra
-
-    names = ", ".join(repr(lit) for lit in readings)
-    hint = ", ".join(f"'{sym}': 'point' | 'interval'" for sym in sorted(symbols))
-    raise AmbiguousKindError(
-        f"{names} could be a temperature reading (converted to its zero-based scale before multiplying) or a "
-        f"temperature difference. Re-call with assume={{{hint}}}, or write the unit you mean "
-        f"(K, delta_degC, delta_degF).",
-        {
-            "occurrences": readings,
-            "interpretations": [{"treat": label(o), "result": t, "assumptions": n} for o, t, n in leaves],
-            "rejected": [{"treat": label(o), "reason": m} for o, m in rejected[:4]],
-        },
-    )
