@@ -54,37 +54,6 @@ def normalize_reading(key: str, value: str) -> Tuple[str, str]:
 
 # --- AST helpers ---
 
-def _is_number(node: ast.AST) -> bool:
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
-        node = node.operand
-    return isinstance(node, ast.Constant) and isinstance(node.value, (int, float))
-
-
-def _is_offset_name(node: ast.AST) -> bool:
-    return isinstance(node, ast.Name) and canonical_scale_name(node.id) is not None
-
-
-class _RegroupLiterals(ast.NodeTransformer):
-    """
-    Binds `<number> <offset unit>` as one literal: `A * 5 * degC` -> `A * (5 * degC)` and
-    `A / 5 * degC` -> `A / (5 * degC)`. Implicit multiplication would otherwise fold the number into A.
-    """
-    def visit_BinOp(self, node: ast.BinOp) -> ast.AST:
-        self.generic_visit(node)
-        inner = node.left
-        if (isinstance(node.op, ast.Mult) and _is_offset_name(node.right)
-                and isinstance(inner, ast.BinOp) and isinstance(inner.op, (ast.Mult, ast.Div))
-                and _is_number(inner.right)):
-            literal = ast.copy_location(ast.BinOp(left=inner.right, op=ast.Mult(), right=node.right), inner.right)
-            literal.end_lineno, literal.end_col_offset = node.end_lineno, node.end_col_offset
-            return ast.copy_location(ast.BinOp(left=inner.left, op=inner.op, right=literal), node)
-        return node
-
-
-def regroup_temperature_literals(tree: ast.AST) -> ast.AST:
-    return ast.fix_missing_locations(_RegroupLiterals().visit(tree))
-
-
 def _scale_exponents(node: ast.AST, sign: int = 1) -> Dict[str, int]:
     """Net exponent of each offset-scale unit name within the multiplicative structure of `node`."""
     if isinstance(node, ast.Name):

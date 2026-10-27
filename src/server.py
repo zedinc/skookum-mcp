@@ -28,7 +28,7 @@ def _get_config() -> Config:
 def _evaluate_once(expression: str, target_unit: str, kinds: ReadingContext) -> str:
     """Parses, evaluates and converts one fully-specified expression, returning 'value unit'."""
     # 1. Parse and evaluate expression safely via AST sandbox
-    evaluated_qty = parse_and_evaluate(expression, kinds)
+    evaluated_qty = parse_and_evaluate(expression, kinds, _prepared=True)
 
     # 2. Handle pure dimensionless numbers
     if not isinstance(evaluated_qty, Quantity):

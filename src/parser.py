@@ -3,7 +3,8 @@ import re
 from typing import Any, Optional, Union, cast
 from sympy import Rational, pi, E
 from .types import Quantity, Unit, Dimensionless
-from .affine import prepare_multiplicative, prepare_power_base, regroup_temperature_literals
+from .affine import prepare_multiplicative, prepare_power_base
+from .juxtaposition import rewrite_juxtaposition
 from .readings import ReadingContext
 
 class SecurityError(Exception):
@@ -35,6 +36,7 @@ class _SafeASTVisitor(ast.NodeVisitor):
         ast.Pow,
         ast.UAdd,
         ast.USub,
+        ast.MatMult,  # internal juxtaposition marker; user-typed '@' is rejected up front
     }
 
     # Safe mathematical operators
@@ -43,6 +45,7 @@ class _SafeASTVisitor(ast.NodeVisitor):
         ast.Sub,
         ast.Mult,
         ast.Div,
+        ast.MatMult,
         ast.Pow,
         ast.UAdd,
         ast.USub,
@@ -101,11 +104,13 @@ def normalize_unicode_symbols(text: str) -> str:
         text = text.replace(uni, asc)
     return text
 
-def preprocess_expression(expr: str) -> str:
+def preprocess_expression(expr: str, mark: bool = False) -> str:
     """
     Normalizes natural phrasing and implicit syntax into standard mathematical format.
     Tolerates 'per', spacing variations, and implicit multiplications (e.g. '10m' -> '10 * m').
+    With `mark=True` the implicit multiplications are emitted as '@' so adjacency survives (ADR 0006).
     """
+    joiner = ' @ ' if mark else ' * '
     # Normalize spacing
     expr = expr.strip()
     
@@ -134,11 +139,11 @@ def preprocess_expression(expr: str) -> str:
     # e.g., "10m" -> "10 * m", "5.5(s)" -> "5.5 * (s)"
     # Avoids breaking scientific notation (like 1e-5) by matching digits
     # followed by word chars or brackets
-    expr = re.sub(r'(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*([a-zA-Z_\[(])', r'\1 * \2', expr)
+    expr = re.sub(r'(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*([a-zA-Z_\[(])', lambda m: m.group(1) + joiner + m.group(2), expr)
     
     # Handle implicit multiplication between closing and opening brackets or words
     # e.g. "(10m)(5s)" -> "(10m) * (5s)"
-    expr = re.sub(r'\)\s*([a-zA-Z_\d\[(])', r') * \1', expr)
+    expr = re.sub(r'\)\s*([a-zA-Z_\d\[(])', lambda m: ')' + joiner + m.group(1), expr)
 
     # `in` (inch) is a Python keyword and would fail ast.parse; run last so `2in` has become `2 * in`
     expr = re.sub(r'\bin\b', 'inch', expr)
@@ -223,11 +228,10 @@ def _evaluate_ast_node(node: ast.AST, kinds: ReadingContext) -> Union[Rational, 
             else:
                 return left ** exponent
 
-def parse_and_evaluate(expression: str, kinds: Optional[ReadingContext] = None) -> Union[Rational, Quantity[Any]]:
+def prepare_expression(expression: str) -> str:
     """
-    Parses, sandboxes, and evaluates an expression string.
-    Raises SecurityError or ExpressionParsingError if unsafe or grammatically invalid.
-    `kinds` carries the point-vs-interval context for offset-scale temperatures (ADR 0005).
+    Validates complexity limits and preprocesses an expression once, marking implicit multiplications with '@'
+    (ADR 0006). A user-typed '@' is rejected here, so the marker cannot be forged.
     """
     # Upfront DoS validation complexity guards
     if len(expression) > 500:
@@ -242,7 +246,18 @@ def parse_and_evaluate(expression: str, kinds: Optional[ReadingContext] = None) 
         elif char == ')':
             depth -= 1
 
-    preprocessed = preprocess_expression(expression)
+    if '@' in expression:
+        raise SecurityError("Unauthorized binary operator 'MatMult' detected.")
+    return preprocess_expression(expression, mark=True)
+
+def parse_and_evaluate(expression: str, kinds: Optional[ReadingContext] = None, _prepared: bool = False) -> Union[Rational, Quantity[Any]]:
+    """
+    Parses, sandboxes, and evaluates an expression string.
+    Raises SecurityError or ExpressionParsingError if unsafe or grammatically invalid.
+    `kinds` carries the recorded reading decisions for ambiguous expressions (ADR 0005, ADR 0006).
+    `_prepared` is for internal callers that already ran `prepare_expression`.
+    """
+    preprocessed = expression if _prepared else prepare_expression(expression)
     try:
         tree = ast.parse(preprocessed, mode='eval')
     except SyntaxError as e:
@@ -252,9 +267,10 @@ def parse_and_evaluate(expression: str, kinds: Optional[ReadingContext] = None) 
     visitor = _SafeASTVisitor()
     visitor.visit(tree)
 
-    # Secure evaluation
-    tree = regroup_temperature_literals(tree)
-    result = _evaluate_ast_node(tree, kinds or ReadingContext())
+    # Bind number-unit juxtaposition into quantity literals, then evaluate securely
+    kinds = kinds or ReadingContext()
+    tree = rewrite_juxtaposition(tree, kinds)
+    result = _evaluate_ast_node(tree, kinds)
     if isinstance(result, Unit):
         return Quantity(1, result)
     return result

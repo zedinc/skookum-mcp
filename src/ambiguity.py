@@ -22,7 +22,6 @@ _ALL_PROFILES = frozenset(PROFILES)
 
 MAX_AMBIGUOUS_TOKENS = 4
 MAX_INTERPRETATIONS = 64
-MAX_EXPRESSION_LENGTH = 500
 
 
 class AssumptionError(ValueError):
@@ -168,20 +167,16 @@ def resolve_ambiguities(
     Evaluates `expression` -> `target_unit` via `evaluate`, resolving ambiguous unit symbols.
     `evaluate(expression, target)` must return (formatted result, notes) or raise on an invalid interpretation.
     """
-    from .parser import preprocess_expression, normalize_unicode_symbols
+    from .parser import prepare_expression, normalize_unicode_symbols
 
-    if len(expression) > MAX_EXPRESSION_LENGTH:
-        # Let the evaluator raise its own length error before any scanning work
-        return Resolution(*evaluate(expression, target_unit))
-
-    pre_expr = preprocess_expression(expression)
+    pre_expr = prepare_expression(expression)  # length/nesting limits, then preprocessed once
     target = normalize_unicode_symbols(target_unit).strip()
     expr_tokens, target_tokens = _tokens_in(pre_expr), _tokens_in(target)
 
     ambiguous = list(dict.fromkeys(t for t in expr_tokens + target_tokens if t in AMBIGUOUS))
     aliases = {t for t in expr_tokens + target_tokens if t in ALIASES and t not in AMBIGUOUS}
     if not ambiguous and not aliases:
-        return Resolution(*evaluate(expression, target_unit))
+        return Resolution(*evaluate(pre_expr, target))
 
     if len(ambiguous) > MAX_AMBIGUOUS_TOKENS:
         from .parser import ExpressionParsingError

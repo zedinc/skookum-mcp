@@ -527,3 +527,9 @@ def test_offset_scale_errors_name_the_actual_offender(make_quantity):
         -make_quantity(50, "degF")
     with pytest.raises(TypeError, match="use a delta unit"):
         make_quantity(1, "degC") * 2
+
+
+def test_quantity_divided_by_a_bare_unit(make_quantity):
+    from src.engine import resolve_unit
+    result = make_quantity(10, "m") / resolve_unit("s")
+    assert result.expressed_value == 10 and result.dimensionality == "[length] * [time] ** -1"
