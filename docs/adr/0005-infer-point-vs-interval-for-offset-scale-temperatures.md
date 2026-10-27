@@ -48,7 +48,7 @@ Flip to interval whenever the point reading is invalid, noting it.
 
 ## Consequences
 *   `Unit.__mul__`/`__truediv__` dropping the offset is *deliberate*, not a bug: an offset unit inside a compound unit (`kg*degC`, `kJ/degC`) denotes a scale step. It is documented and tested instead of changed. A bare offset unit multiplied or divided onto a `Quantity` (`4.18 kJ/degC`) is likewise replaced by its interval unit.
-*   A number written directly before an offset-scale unit binds to it as one literal even through implicit multiplication: `A * 5 degC` is `A * (5 degC)` and `A / 20 degC` is `A / (20 degC)`. This regrouping is deliberately limited to offset-scale units. General number-unit juxtaposition (`10 m / 2 s`) is a separate known issue.
+*   A number written directly before an offset-scale unit binds to it as one literal even through implicit multiplication: `A * 5 degC` is `A * (5 degC)` and `A / 20 degC` is `A / (20 degC)`. *Superseded by ADR 0006*, which generalises this to all units and applies it to juxtaposition only; an explicit `A * 5 * degC` is now a compound unit (`A * 5` in `delta_degC`).
 *   Evaluator gains a small kind-propagation pass; `Quantity` and the converter are unchanged (ADR 0001 holds).
 *   Pressure (`psig`/`psia`, differential `psi`) can adopt the same registry-declared families later.
 *   The README and PRD statements about blocking absolute-temperature multiplication change from "error" to "converted to kelvin, with an assumption note".

@@ -54,7 +54,7 @@ Skookum MCP evaluates physical equations algebraically across common physical un
 *   **Result**: `3.6 megajoule`
 
 ### 3. Reciprocal Fuel Consumption
-*   **Expression**: `30 mpg`
+*   **Expression**: `30 mpg` (needs a `us` profile or `gallon = "us_gallon"` default, since `mpg` means US or Imperial gallons; see [Configuring defaults](#configuring-ambiguous-unit-defaults))
 *   **Target Unit**: `l/100km`
 *   **Result**: `7.84049 liter / (100 * kilometer)`
 
@@ -69,7 +69,7 @@ When asked to perform physically impossible calculations, the engine elegantly b
 
 ## Agentic Interface (MCP)
 
-Skookum MCP exposes four capabilities to AI agents under the Model Context Protocol:
+Skookum MCP exposes tools, resources and a prompt to AI agents under the Model Context Protocol:
 
 ### 1. The Tool: `dimensional_compute`
 Let the agent safely evaluate physics formulas and target conversions.
@@ -109,15 +109,20 @@ Explicit spellings (`°C`, `°R`, `us_gallon`, `typographic_point`) are never am
 ### 2. The Tool: `set_unit_default`
 Fixes an ambiguous symbol for the rest of the session (in memory only), so the agent resolves `pt` once: `set_unit_default("pt", "typographic_point")`. It never touches your config file.
 
-### 3. The Resource: `units://ambiguous`
+### 3. The Tool: `set_reading_default`
+Records a decision about an ambiguous *reading* for the rest of the session, so the same question is not asked twice: `set_reading_default("fraction_unit", "scalar")`, or `("degC", "point")`. Also memory-only.
+
+**Number-unit literals.** `10 m / 2 s` is `(10 m) / (2 s)` = 5 m/s, and `10 m / 2 m/s` is 5 s: a number followed by a unit is one quantity (unlike Pint, which reads `10 m / 2 s` as 5 m·s). Explicit `*` stays left to right. The one case Skookum will not decide is a unit-free fraction divided by a number and unit, such as `10 / 2 s` or `1/3 m`: it could be `(10/2) s` or `10/(2 s)`. The tool returns `Ambiguous Fraction` with the result under each reading; you decide with `assume={"fraction_unit": "scalar" | "divisor"}`, record it with `set_reading_default`, or write parentheses. Readings that give the same answer (`pi / 2 rad`) are not asked about.
+
+### 4. The Resource: `units://ambiguous`
 Every ambiguous symbol with its candidates: id, unit, physical dimension and description.
 
-### 4. The Resource: `units://supported`
+### 5. The Resource: `units://supported`
 Exposes the physical dimension catalog to guide the LLM's inputs dynamically and prevent formatting hallucinations.
 *   **URI**: `units://supported`
 *   **Returns**: A structured JSON mapping categories (length, force, energy, power, pressure, absolute/delta temperatures) to their canonical names.
 
-### 5. The Prompt: `verify_dimensional_consistency`
+### 6. The Prompt: `verify_dimensional_consistency`
 A workflow template instructing the LLM to scan technical reports, extract physical formulas, and call the computational tool to verify their mathematical correctness.
 
 ---
@@ -132,6 +137,10 @@ profile = "us"            # us | imperial | metric; breaks ties context cannot s
 [defaults]                # per-symbol choices; these win over the profile
 ton = "short_ton"
 pt = "typographic_point"
+
+[readings]                # decisions for ambiguous readings, so you are never asked
+fraction_unit = "scalar"  # scalar: (10/2) s, divisor: 10/(2 s)
+degC = "point"            # point | interval, for 'could be a reading or a difference' cases
 ```
 
 Defaults only break ties: they never override what the surrounding expression makes unambiguous. See `units://ambiguous` for the available ids. The server only reads this file.

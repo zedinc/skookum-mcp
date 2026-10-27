@@ -102,8 +102,8 @@ In this repository, the label **`[ready-for-agent]`** indicates a triage status.
 
 ### Issue: Implicit multiplication binds left-to-right after `/`
 *   **Backlog Type**: Technical / Code Backlog
-*   **Status**: `[STATUS: OPEN]`
-*   **Context**: `10 m / 2 s` evaluates to metre-seconds (5 m*s), not 5 m/s, because `/ 2 s` becomes `(10 m / 2) * s`. Offset-scale temperatures are regrouped as a special case (ADR 0005), but general number-unit juxtaposition is not. Fixing it changes the meaning of `1/3 m`, so it needs a decision on convention first.
+*   **Status**: `[STATUS: RESOLVED]` — see [ADR 0006](./adr/0006-bind-number-unit-juxtaposition-as-quantity-literals.md).
+*   **Resolution**: `10 m / 2 s` was evaluated as 5 m·s. Number-unit pairs are now quantity literals; the one unit-free-fraction case that cannot be decided from the text is returned as an `Ambiguous Fraction` for the caller to settle.
 
 ### Issue: `in` (inch) failed to parse
 *   **Backlog Type**: Technical / Code Backlog

@@ -34,6 +34,14 @@ _Avoid_: Locale, region
 A temperature is either a point on a scale (a reading: 20 degC) or an interval (a difference: 5 delta_degC). The unit alone does not say which; the expression does (ADR 0005). Only offset-scale units (degC, degF) cannot be scaled as points, so they are converted to their zero-based scale (K, degR) before multiplying.
 _Avoid_: Absolute/relative temperature
 
+**Quantity Literal**:
+A number immediately followed by a unit (`2 s`, `2 m/s`) is read as one quantity that binds tighter than `*` and `/` (ADR 0006). A unit-free fraction divided by such a literal (`10 / 2 s`) is ambiguous and is put to the caller.
+_Avoid_: Term, token
+
+**Reading Question**:
+A point where an expression has more than one legitimate reading that Skookum will not choose between (e.g. point vs interval, `(10/2) s` vs `10/(2 s)`). The caller's decision can be given per call, recorded for the session, or set in the config file.
+_Avoid_: Ambiguity error, prompt
+
 **Converter**:
 The domain module responsible for translating a physical Quantity into a target Unit of mathematically compatible dimensions.
 _Avoid_: Calculator, engine, translator
